@@ -23,7 +23,7 @@ st.markdown("""
         
         /* 상단 여백 제거 및 헤더 스타일 */
         .block-container {
-            padding-top: 2rem;
+            padding-top: 1.5rem;
             padding-bottom: 3rem;
         }
         
@@ -31,20 +31,17 @@ st.markdown("""
         div.css-1r6slb0, div.stDataFrame, div[data-testid="stMetric"] {
             background-color: white;
             border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            padding: 15px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03);
             border: 1px solid #e1e4e8;
         }
         
         /* 텍스트 스타일 */
-        h1 { font-family: 'Helvetica', sans-serif; color: #1a202c; font-weight: 800; font-size: 2.2rem; }
-        h2 { font-family: 'Helvetica', sans-serif; color: #2d3748; font-weight: 700; font-size: 1.5rem; }
-        h3 { font-family: 'Helvetica', sans-serif; color: #4a5568; font-weight: 600; font-size: 1.2rem; }
-        p, div { font-family: 'Helvetica', sans-serif; color: #4a5568; }
+        h1, h2, h3 { font-family: 'Helvetica', sans-serif; color: #2d3748; }
         
         /* 메트릭(숫자) 스타일 강조 */
         [data-testid="stMetricValue"] {
-            font-size: 1.8rem !important;
+            font-size: 1.6rem !important;
             font-weight: 700 !important;
             color: #2b6cb0 !important;
         }
@@ -57,14 +54,14 @@ st.markdown("""
         
         /* 합계 표시 박스 스타일 (그라데이션) */
         .total-box {
-            background: linear-gradient(90deg, #2b6cb0 0%, #2c5282 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 15px 25px;
             border-radius: 10px;
             text-align: right;
-            font-size: 1.1rem;
+            font-size: 1.2rem;
             font-weight: bold;
-            box-shadow: 0 4px 10px rgba(43, 108, 176, 0.3);
+            box-shadow: 0 4px 10px rgba(118, 75, 162, 0.3);
             margin-bottom: 15px;
         }
     </style>
@@ -129,26 +126,25 @@ df_expense = data2
 
 # --- [사이드바] ---
 with st.sidebar:
-    st.markdown("### 🎛️ CONTROL PANEL")
-    st.markdown("---")
+    st.markdown("### 🎛️ Dashboard Control")
     
     # 필터 디자인
     month_list = sorted([m for m in df_expense['월'].unique() if m != '날짜없음'], reverse=True)
-    period_option = st.selectbox("📅 기간 (Period)", ["전체 누적"] + month_list)
+    period_option = st.selectbox("📅 기간 선택", ["전체 누적"] + month_list)
     
     team_list = sorted(df_base['팀명'].unique())
-    team_option = st.selectbox("🏢 부서 (Department)", ["전체 부서"] + team_list)
+    team_option = st.selectbox("🏢 부서 선택", ["전체 부서"] + team_list)
     
     st.markdown("---")
-    st.caption("Factory Budget Management System v2.5")
+    st.info("데이터는 실시간으로 연동됩니다.")
 
 # --- [데이터 필터링] ---
 if period_option == "전체 누적":
     df_filtered_exp = df_expense
-    period_label = "Total Year"
+    period_label = "2026 연간 누적"
 else:
     df_filtered_exp = df_expense[df_expense['월'] == period_option]
-    period_label = f"{period_option}"
+    period_label = f"{period_option} 월간"
 
 if team_option != "전체 부서":
     df_filtered_exp_detail = df_filtered_exp[df_filtered_exp['팀명'] == team_option]
@@ -165,10 +161,10 @@ df_dashboard['집행률'] = df_dashboard.apply(lambda x: (x['사용액'] / x['�
 
 # --- [메인 대시보드] ---
 st.title("Factory Budget Manager")
-st.markdown(f"**{period_label}** / **{team_option}** 현황 리포트")
-st.markdown("<br>", unsafe_allow_html=True) # 간격 추가
+st.markdown(f"**{period_label}** / **{team_option}** 재무 현황")
+st.markdown("<br>", unsafe_allow_html=True) 
 
-# [1] KPI Cards (카드 디자인 적용)
+# [1] KPI Cards
 total_b = df_dashboard['총예산'].sum()
 total_s = df_dashboard['사용액'].sum()
 total_r = df_dashboard['잔액'].sum()
@@ -176,9 +172,9 @@ avg_r = (total_s / total_b * 100) if total_b > 0 else 0
 
 col1, col2, col3, col4 = st.columns(4)
 with col1:
-    st.metric("Budget (배정)", f"{total_b:,.0f}")
+    st.metric("Budget (배정)", f"{total_b:,.0f}", delta="목표")
 with col2:
-    st.metric("Actual (지출)", f"{total_s:,.0f}", f"{avg_r:.1f}%")
+    st.metric("Actual (지출)", f"{total_s:,.0f}", f"{avg_r:.1f}%", delta_color="inverse")
 with col3:
     st.metric("Remain (잔액)", f"{total_r:,.0f}")
 with col4:
@@ -186,25 +182,21 @@ with col4:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# [2] Chart & Table Split View
+# [2] Chart & Advanced Table (프로그램 스타일 적용)
 c_left, c_right = st.columns([1, 1])
 
 with c_left:
-    st.subheader("📊 부서별 집행 현황")
+    st.subheader("📊 부서별 집행 분석")
     if not df_dashboard.empty:
-        # Plotly 차트 디자인 개선
         fig = go.Figure()
-        
-        # 잔액 막대 (배경)
+        # 배경바 (회색)
         fig.add_trace(go.Bar(
             y=df_dashboard['팀명'], x=df_dashboard['총예산'],
             orientation='h', name='총 예산',
             marker_color='#edf2f7', hoverinfo='none'
         ))
-        
-        # 지출 막대 (실적) - 그라데이션 컬러 적용
-        colors = ['#2b6cb0' if r < 100 else '#e53e3e' for r in df_dashboard['집행률']]
-        
+        # 실적바 (그라데이션)
+        colors = ['#5a67d8' if r < 100 else '#e53e3e' for r in df_dashboard['집행률']]
         fig.add_trace(go.Bar(
             y=df_dashboard['팀명'], x=df_dashboard['사용액'],
             orientation='h', name='지출액',
@@ -212,7 +204,6 @@ with c_left:
             text=df_dashboard['집행률'].apply(lambda x: f"{x:.1f}%"),
             textposition='auto'
         ))
-        
         fig.update_layout(
             barmode='overlay', 
             plot_bgcolor='white',
@@ -224,15 +215,26 @@ with c_left:
         )
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.info("표시할 데이터가 없습니다.")
+        st.info("데이터 없음")
 
 with c_right:
-    st.subheader("📋 예산 요약표")
-    # 깔끔한 테이블 스타일링
+    st.subheader("📋 예산 현황 리포트")
+    # [핵심] column_config를 사용하여 앱 같은 표 만들기
     st.dataframe(
-        df_dashboard[['팀명', '총예산', '사용액', '잔액', '집행률']].style
-        .format({'총예산': '{:,.0f}', '사용액': '{:,.0f}', '잔액': '{:,.0f}', '집행률': '{:.1f}%'})
-        .background_gradient(subset=['집행률'], cmap='Blues', vmin=0, vmax=100),
+        df_dashboard,
+        column_config={
+            "팀명": st.column_config.TextColumn("부서명", width="medium"),
+            "총예산": st.column_config.NumberColumn("배정 예산", format="%d원"),
+            "사용액": st.column_config.NumberColumn("지출액", format="%d원"),
+            "잔액": st.column_config.NumberColumn("잔액", format="%d원"),
+            "집행률": st.column_config.ProgressColumn(
+                "집행률 (%)",
+                format="%.1f%%",
+                min_value=0,
+                max_value=100,
+            ),
+        },
+        hide_index=True,  # 0, 1, 2 인덱스 숨기기
         use_container_width=True,
         height=350
     )
@@ -242,7 +244,7 @@ st.markdown("---")
 # [3] Detail Section (상세 내역)
 st.subheader("📝 상세 지출 내역서")
 
-# 합계 표시를 위한 커스텀 HTML 박스
+# 합계 박스 (보라색 그라데이션)
 detail_total = df_filtered_exp_detail['금액'].sum()
 st.markdown(f"""
     <div class="total-box">
@@ -254,10 +256,18 @@ st.markdown(f"""
 if not df_filtered_exp_detail.empty:
     cols_show = [c for c in ['날짜', '팀명', '대분류', '소분류', '상세내역', '금액'] if c in df_filtered_exp_detail.columns]
     
+    # 여기서도 column_config로 깔끔하게 처리
     st.dataframe(
-        df_filtered_exp_detail[cols_show]
-        .sort_values('날짜', ascending=False)
-        .style.format({'금액': '{:,.0f}원', '날짜': '{:%Y-%m-%d}'}),
+        df_filtered_exp_detail[cols_show].sort_values('날짜', ascending=False),
+        column_config={
+            "날짜": st.column_config.DateColumn("일자", format="YYYY-MM-DD"),
+            "금액": st.column_config.NumberColumn("금액", format="%d원"),
+            "팀명": st.column_config.TextColumn("부서"),
+            "대분류": st.column_config.TextColumn("항목(대)"),
+            "소분류": st.column_config.TextColumn("항목(소)"),
+            "상세내역": st.column_config.TextColumn("적요", width="large"),
+        },
+        hide_index=True,
         use_container_width=True
     )
 else:
