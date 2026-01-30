@@ -4,7 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 # -----------------------------------------------------------------------------
-# 1. 프리미엄 디자인 설정 (CSS Injection)
+# 1. 앱 디자인 설정 (UI/UX)
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="Factory Budget Pro",
@@ -13,56 +13,50 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# [커스텀 CSS] UI를 고급스럽게 만드는 스타일 코드
+# [커스텀 CSS] 엑셀 느낌을 지우고 앱처럼 보이게 하는 스타일
 st.markdown("""
     <style>
-        /* 전체 배경색 은은한 회색으로 변경 */
-        .stApp {
-            background-color: #f5f7f9;
-        }
+        /* 배경 및 폰트 */
+        .stApp { background-color: #f8f9fa; }
         
-        /* 상단 여백 제거 및 헤더 스타일 */
-        .block-container {
-            padding-top: 1.5rem;
-            padding-bottom: 3rem;
-        }
-        
-        /* 카드 디자인 (Metric, Chart 컨테이너) */
-        div.css-1r6slb0, div.stDataFrame, div[data-testid="stMetric"] {
+        /* 카드 스타일 (그림자 효과) */
+        .css-1r6slb0, div[data-testid="stMetric"] {
             background-color: white;
             border-radius: 12px;
             padding: 15px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03);
-            border: 1px solid #e1e4e8;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            border: none;
         }
         
-        /* 텍스트 스타일 */
-        h1, h2, h3 { font-family: 'Helvetica', sans-serif; color: #2d3748; }
-        
-        /* 메트릭(숫자) 스타일 강조 */
-        [data-testid="stMetricValue"] {
-            font-size: 1.6rem !important;
-            font-weight: 700 !important;
-            color: #2b6cb0 !important;
-        }
-        
-        /* 사이드바 스타일 */
-        [data-testid="stSidebar"] {
-            background-color: #ffffff;
-            border-right: 1px solid #e2e8f0;
-        }
-        
-        /* 합계 표시 박스 스타일 (그라데이션) */
-        .total-box {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 15px 25px;
-            border-radius: 10px;
-            text-align: right;
-            font-size: 1.2rem;
-            font-weight: bold;
-            box-shadow: 0 4px 10px rgba(118, 75, 162, 0.3);
+        /* 팀별 카드 디자인 */
+        .team-card {
+            background-color: white;
+            padding: 20px;
+            border-radius: 15px;
             margin-bottom: 15px;
+            border-left: 5px solid #3182ce;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        
+        /* 진행바 커스텀 */
+        .stProgress > div > div > div > div {
+            background-image: linear-gradient(to right, #3182ce, #63b3ed);
+        }
+        
+        /* 숫자 강조 */
+        .big-number { font-size: 1.2rem; font-weight: 700; color: #2d3748; }
+        .sub-text { font-size: 0.9rem; color: #718096; }
+        
+        /* 합계 박스 */
+        .total-floating {
+            background: #2c5282;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -71,7 +65,7 @@ st.markdown("""
 SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6hnNtH_1tBFJoA25lXzFPjKUGpBfu0H313_QVFDPdHOpWDDQSJQvIlOQpUoczNO7z7jyWbE171ApD/pub?output=xlsx"
 
 # -----------------------------------------------------------------------------
-# 2. 데이터 엔진 (로딩 및 정제)
+# 2. 데이터 엔진
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=60)
 def load_data_engine():
@@ -82,7 +76,7 @@ def load_data_engine():
         expense_sheet = next((s for s in sheets.keys() if '지출' in s or 'Expense' in s), None)
         
         if not budget_sheet or not expense_sheet:
-            return False, "필수 시트가 누락되었습니다.", None
+            return False, "시트 누락", None
 
         # [A] 예산 데이터
         df_budget = sheets[budget_sheet].fillna(0)
@@ -107,44 +101,34 @@ def load_data_engine():
         if '금액' in df_expense.columns:
             df_expense['금액'] = pd.to_numeric(df_expense['금액'], errors='coerce').fillna(0)
 
+        # [자동 필터링] 금액이 0인 무의미한 행 제거 (빈 셀 없애기)
+        df_expense = df_expense[df_expense['금액'] != 0]
+
         return True, df_base, df_expense
 
     except Exception as e:
         return False, str(e), None
 
-# -----------------------------------------------------------------------------
-# 3. 메인 프로그램 로직
-# -----------------------------------------------------------------------------
 status, data1, data2 = load_data_engine()
+if not status: st.stop()
 
-if not status:
-    st.error(f"시스템 오류: {data1}")
-    st.stop()
-
-df_base = data1
-df_expense = data2
+df_base, df_expense = data1, data2
 
 # --- [사이드바] ---
 with st.sidebar:
-    st.markdown("### 🎛️ Dashboard Control")
-    
-    # 필터 디자인
+    st.markdown("### ⚙️ 설정")
     month_list = sorted([m for m in df_expense['월'].unique() if m != '날짜없음'], reverse=True)
-    period_option = st.selectbox("📅 기간 선택", ["전체 누적"] + month_list)
+    period_option = st.selectbox("기간", ["전체 누적"] + month_list)
     
     team_list = sorted(df_base['팀명'].unique())
-    team_option = st.selectbox("🏢 부서 선택", ["전체 부서"] + team_list)
-    
-    st.markdown("---")
-    st.info("데이터는 실시간으로 연동됩니다.")
+    team_option = st.selectbox("부서", ["전체 부서"] + team_list)
+    st.info("데이터는 실시간 연동됩니다.")
 
-# --- [데이터 필터링] ---
+# --- [데이터 가공] ---
 if period_option == "전체 누적":
     df_filtered_exp = df_expense
-    period_label = "2026 연간 누적"
 else:
     df_filtered_exp = df_expense[df_expense['월'] == period_option]
-    period_label = f"{period_option} 월간"
 
 if team_option != "전체 부서":
     df_filtered_exp_detail = df_filtered_exp[df_filtered_exp['팀명'] == team_option]
@@ -153,122 +137,100 @@ else:
     df_filtered_exp_detail = df_filtered_exp
     df_base_view = df_base
 
-# 합계 재계산
+# 합계 계산
 exp_summary = df_filtered_exp.groupby('팀명')['금액'].sum().reset_index().rename(columns={'금액': '사용액'})
 df_dashboard = pd.merge(df_base_view, exp_summary, on='팀명', how='left').fillna(0)
 df_dashboard['잔액'] = df_dashboard['총예산'] - df_dashboard['사용액']
 df_dashboard['집행률'] = df_dashboard.apply(lambda x: (x['사용액'] / x['총예산'] * 100) if x['총예산'] > 0 else 0, axis=1)
 
-# --- [메인 대시보드] ---
-st.title("Factory Budget Manager")
-st.markdown(f"**{period_label}** / **{team_option}** 재무 현황")
-st.markdown("<br>", unsafe_allow_html=True) 
+# [빈 팀 숨기기] 예산도 없고 사용액도 없는 팀은 화면에서 제외
+df_dashboard = df_dashboard[~((df_dashboard['총예산'] == 0) & (df_dashboard['사용액'] == 0))]
 
-# [1] KPI Cards
+# --- [메인 UI] ---
+st.title("Factory Budget Manager")
+st.markdown(f"**{team_option} / {period_option}** 현황 리포트")
+
+# 1. KPI Cards
 total_b = df_dashboard['총예산'].sum()
 total_s = df_dashboard['사용액'].sum()
 total_r = df_dashboard['잔액'].sum()
 avg_r = (total_s / total_b * 100) if total_b > 0 else 0
 
-col1, col2, col3, col4 = st.columns(4)
-with col1:
-    st.metric("Budget (배정)", f"{total_b:,.0f}", delta="목표")
-with col2:
-    st.metric("Actual (지출)", f"{total_s:,.0f}", f"{avg_r:.1f}%", delta_color="inverse")
-with col3:
-    st.metric("Remain (잔액)", f"{total_r:,.0f}")
-with col4:
-    st.metric("Count (건수)", f"{len(df_filtered_exp_detail):,}건")
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("총 예산", f"{total_b:,.0f}")
+c2.metric("총 지출", f"{total_s:,.0f}", f"{avg_r:.1f}%")
+c3.metric("잔액", f"{total_r:,.0f}")
+c4.metric("건수", f"{len(df_filtered_exp_detail):,}건")
 
-st.markdown("<br>", unsafe_allow_html=True)
+st.markdown("---")
 
-# [2] Chart & Advanced Table (프로그램 스타일 적용)
-c_left, c_right = st.columns([1, 1])
+# 2. 팀별 카드 리스트 (엑셀 표 대신 카드 UI 사용)
+col_chart, col_list = st.columns([4, 6])
 
-with c_left:
-    st.subheader("📊 부서별 집행 분석")
+with col_chart:
+    st.subheader("📊 집행률 분석")
     if not df_dashboard.empty:
         fig = go.Figure()
-        # 배경바 (회색)
-        fig.add_trace(go.Bar(
-            y=df_dashboard['팀명'], x=df_dashboard['총예산'],
-            orientation='h', name='총 예산',
-            marker_color='#edf2f7', hoverinfo='none'
-        ))
-        # 실적바 (그라데이션)
-        colors = ['#5a67d8' if r < 100 else '#e53e3e' for r in df_dashboard['집행률']]
-        fig.add_trace(go.Bar(
-            y=df_dashboard['팀명'], x=df_dashboard['사용액'],
-            orientation='h', name='지출액',
-            marker_color=colors,
-            text=df_dashboard['집행률'].apply(lambda x: f"{x:.1f}%"),
-            textposition='auto'
-        ))
-        fig.update_layout(
-            barmode='overlay', 
-            plot_bgcolor='white',
-            margin=dict(l=10, r=10, t=10, b=10),
-            height=350,
-            showlegend=False,
-            xaxis=dict(showgrid=False),
-            yaxis=dict(showgrid=False)
-        )
+        # 원형 차트로 변경 (더 앱스러움)
+        fig = px.pie(df_dashboard, values='사용액', names='팀명', hole=0.6, 
+                     color_discrete_sequence=px.colors.qualitative.Prism)
+        fig.update_layout(showlegend=True, margin=dict(t=20, b=20, l=20, r=20), height=400)
+        # 중앙에 총액 표시
+        fig.add_annotation(text=f"{int(avg_r)}%", x=0.5, y=0.5, font_size=20, showarrow=False)
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("데이터 없음")
 
-with c_right:
-    st.subheader("📋 예산 현황 리포트")
-    # [핵심] column_config를 사용하여 앱 같은 표 만들기
-    st.dataframe(
-        df_dashboard,
-        column_config={
-            "팀명": st.column_config.TextColumn("부서명", width="medium"),
-            "총예산": st.column_config.NumberColumn("배정 예산", format="%d원"),
-            "사용액": st.column_config.NumberColumn("지출액", format="%d원"),
-            "잔액": st.column_config.NumberColumn("잔액", format="%d원"),
-            "집행률": st.column_config.ProgressColumn(
-                "집행률 (%)",
-                format="%.1f%%",
-                min_value=0,
-                max_value=100,
-            ),
-        },
-        hide_index=True,  # 0, 1, 2 인덱스 숨기기
-        use_container_width=True,
-        height=350
-    )
+with col_list:
+    st.subheader("🏢 팀별 현황")
+    # [핵심] 표(DataFrame) 대신 반복문으로 카드(Card) 생성 -> 앱 느낌 물씬
+    with st.container(height=400): # 스크롤 가능한 영역
+        for i, row in df_dashboard.iterrows():
+            with st.container():
+                # 카드 HTML 구조 생성
+                pct = min(row['집행률'], 100)
+                color = "#3182ce" if pct < 80 else ("#dd6b20" if pct < 100 else "#e53e3e")
+                
+                c_a, c_b, c_c = st.columns([3, 4, 3])
+                with c_a:
+                    st.markdown(f"**{row['팀명']}**")
+                    st.caption(f"예산: {row['총예산']:,.0f}")
+                with c_b:
+                    st.progress(pct / 100)
+                    st.caption(f"지출: {row['사용액']:,.0f} ({row['집행률']:.1f}%)")
+                with c_c:
+                    st.markdown(f"<div style='text-align:right; color:{color}; font-weight:bold;'>{row['잔액']:,.0f}원</div>", unsafe_allow_html=True)
+                    st.caption("잔액")
+                st.divider()
 
 st.markdown("---")
 
-# [3] Detail Section (상세 내역)
-st.subheader("📝 상세 지출 내역서")
+# 3. 상세 내역 (깔끔한 리스트 뷰)
+st.subheader("📝 지출 내역")
 
-# 합계 박스 (보라색 그라데이션)
+# 합계 바
 detail_total = df_filtered_exp_detail['금액'].sum()
 st.markdown(f"""
-    <div class="total-box">
-        <span>Total Expense : </span>
-        <span style="font-size: 1.5rem; margin-left: 10px;">{detail_total:,.0f} 원</span>
+    <div class="total-floating">
+        <span>🧾 조회 내역 합계</span>
+        <span style="font-size: 1.3rem;">{detail_total:,.0f} 원</span>
     </div>
+    <br>
 """, unsafe_allow_html=True)
 
 if not df_filtered_exp_detail.empty:
     cols_show = [c for c in ['날짜', '팀명', '대분류', '소분류', '상세내역', '금액'] if c in df_filtered_exp_detail.columns]
     
-    # 여기서도 column_config로 깔끔하게 처리
     st.dataframe(
         df_filtered_exp_detail[cols_show].sort_values('날짜', ascending=False),
         column_config={
-            "날짜": st.column_config.DateColumn("일자", format="YYYY-MM-DD"),
-            "금액": st.column_config.NumberColumn("금액", format="%d원"),
-            "팀명": st.column_config.TextColumn("부서"),
-            "대분류": st.column_config.TextColumn("항목(대)"),
-            "소분류": st.column_config.TextColumn("항목(소)"),
-            "상세내역": st.column_config.TextColumn("적요", width="large"),
+            "날짜": st.column_config.DateColumn("Date", format="MM-DD"),
+            "금액": st.column_config.NumberColumn("Amount", format="%d원"),
+            "팀명": st.column_config.TextColumn("Team", width="small"),
+            "상세내역": st.column_config.TextColumn("Description", width="large"),
         },
         hide_index=True,
         use_container_width=True
     )
 else:
-    st.info("조회된 지출 내역이 없습니다.")
+    st.info("지출 내역이 없습니다.")
