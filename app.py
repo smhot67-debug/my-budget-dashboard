@@ -6,153 +6,172 @@ import google.generativeai as genai
 # 1. 환경 설정
 st.set_page_config(page_title="공장 예산관리 통합 시스템", layout="wide")
 
-# API 키
+# API 키 및 구글 시트 주소 (엑셀 형식)
 API_KEY = "AIzaSyAkhIIHXg2XJSBHfrkhxGP_0iW1KZZJlZc"
-
-# [중요] 구글 시트 주소 (반드시 'Microsoft Excel(.xlsx)' 형식으로 게시해야 함)
-# 아래 주소는 예시입니다. 동권님이 엑셀 형식으로 다시 게시 후 주소를 바꿔주세요.
-# 만약 기존 CSV 주소만 있다면, 구글 시트 > 파일 > 공유 > 웹에 게시 > 'Microsoft Excel' 선택 후 주소 복사
 SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6hnNtH_1tBFJoA25lXzFPjKUGpBfu0H313_QVFDPdHOpWDDQSJQvIlOQpUoczNO7z7jyWbE171ApD/pub?output=xlsx"
 
 genai.configure(api_key=API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-# 2. 데이터 로드 및 병합 (핵심 로직)
+# 2. 데이터 로드 및 전처리
 @st.cache_data(ttl=60)
-def load_data_integrated():
+def load_data_pro():
     try:
-        # 엑셀 파일로 시트 전체를 읽어옵니다 (Sheet1: 기준정보, Sheet2: 지출내역)
-        # sheet_name=None을 쓰면 모든 시트를 다 가져옵니다.
         sheets = pd.read_excel(SHEET_URL, sheet_name=None)
         
-        # 시트 이름 찾기 (이름이 조금 달라도 찾을 수 있게 처리)
-        budget_sheet_name = next((s for s in sheets.keys() if '기준' in s or 'Budget' in s), None)
-        expense_sheet_name = next((s for s in sheets.keys() if '지출' in s or 'Expense' in s), None)
+        # 시트 이름 자동 찾기
+        budget_sheet = next((s for s in sheets.keys() if '기준' in s or 'Budget' in s), None)
+        expense_sheet = next((s for s in sheets.keys() if '지출' in s or 'Expense' in s), None)
         
-        if not budget_sheet_name or not expense_sheet_name:
-            return "오류: '기준정보' 시트와 '지출내역' 시트가 모두 필요합니다."
+        if not budget_sheet or not expense_sheet:
+            return "Err", "시트 이름을 찾을 수 없습니다. (기준정보/지출내역 시트 필요)"
 
-        # --- [A] 기준정보(Budget) 처리 ---
-        df_budget = sheets[budget_sheet_name].fillna(0)
-        
-        # 예산 계산: 기본 배정예산 + 월별 추가예산 합계
-        # (팀명, 배정예산 컬럼은 고정, 나머지는 월별 추가예산으로 간주)
+        # [A] 예산 데이터 (기준정보)
+        df_budget = sheets[budget_sheet].fillna(0)
         # 숫자 정제
         for col in df_budget.columns:
             if col != '팀명':
                 df_budget[col] = pd.to_numeric(df_budget[col], errors='coerce').fillna(0)
         
-        # 총 예산 = 배정예산 + (나머지 컬럼들의 합)
+        # 총 예산 계산
         df_budget['총예산'] = df_budget.iloc[:, 1:].sum(axis=1)
-        df_budget = df_budget[['팀명', '총예산']] # 필요한 컬럼만 남김
+        df_base = df_budget[['팀명', '총예산']]
 
-        # --- [B] 지출내역(Expense) 처리 ---
-        df_expense = sheets[expense_sheet_name].fillna(0)
+        # [B] 지출 데이터 (지출내역)
+        df_expense = sheets[expense_sheet].fillna(0)
         
-        # 지출 데이터 정제
+        # 날짜 컬럼 처리 (필터링을 위해 필수)
+        date_col = next((c for c in df_expense.columns if '날짜' in c or 'Date' in c), None)
+        if date_col:
+            df_expense[date_col] = pd.to_datetime(df_expense[date_col], errors='coerce')
+            # '월(Month)' 컬럼 생성 (예: 2026-01)
+            df_expense['조회월'] = df_expense[date_col].dt.strftime('%Y-%m')
+        else:
+            df_expense['조회월'] = '날짜없음'
+
         if '금액' in df_expense.columns:
             df_expense['금액'] = pd.to_numeric(df_expense['금액'], errors='coerce').fillna(0)
-        
-        # 팀별로 그룹지어 지출 합계 계산 (여기가 핵심!)
-        expense_summary = df_expense.groupby('팀명')['금액'].sum().reset_index()
-        expense_summary.rename(columns={'금액': '총지출'}, inplace=True)
 
-        # --- [C] 데이터 병합 (Merge) ---
-        # 기준정보(Left)에 지출내역(Right)을 팀명 기준으로 붙이기
-        df_final = pd.merge(df_budget, expense_summary, on='팀명', how='left').fillna(0)
-        
-        # 최종 지표 계산
-        df_final['잔액'] = df_final['총예산'] - df_final['총지출']
-        df_final['집행률'] = df_final.apply(lambda x: (x['총지출'] / x['총예산'] * 100) if x['총예산'] > 0 else 0, axis=1)
-        
-        return df_final, df_expense # 요약표와 상세내역 둘 다 반환
+        return df_base, df_expense
 
     except Exception as e:
-        return f"데이터 처리 중 오류 발생: {e}", None
+        return "Err", str(e)
 
 # 3. UI 렌더링
-result = load_data_integrated()
+result = load_data_pro()
 
-if isinstance(result[0], str): # 에러 메시지인 경우
-    st.error(result[0])
-    st.info("💡 팁: 구글 시트 '웹에 게시' 설정에서 형식을 'Microsoft Excel(.xlsx)'로 선택해야 시트 2개를 모두 읽을 수 있습니다.")
+if result[0] == "Err":
+    st.error(f"데이터 오류: {result[1]}")
     st.stop()
 
-df_summary, df_detail = result
+df_budget_base, df_expense_all = result
 
-st.title("🏭 공장 예산 통합 관리 시스템")
-st.markdown("기준정보(Plan)와 지출내역(Actual)을 실시간으로 비교 분석합니다.")
+# --- [사이드바 컨트롤] ---
+# 여기서 월을 선택하면 전체 대시보드가 바뀝니다.
+st.sidebar.header("🔍 조회 필터")
+
+# 1. 월 선택 콤보박스 (데이터에 있는 월만 추출)
+available_months = sorted(list(set(df_expense_all['조회월'].dropna())))
+if '날짜없음' in available_months: available_months.remove('날짜없음')
+
+# '전체 누적'을 기본으로 추가
+month_options = ["전체 누적"] + available_months
+selected_month = st.sidebar.selectbox("📅 조회 기간 (월)", month_options)
+
+# 2. 팀 선택 콤보박스
+team_options = ["전체 팀"] + list(df_budget_base['팀명'].unique())
+selected_team = st.sidebar.selectbox("🏢 부서 선택", team_options)
+
+
+# --- [데이터 필터링 로직] ---
+# 선택한 월에 해당하는 지출 데이터만 걸러냄
+if selected_month == "전체 누적":
+    filtered_expense = df_expense_all
+    period_title = "전체 누적"
+else:
+    filtered_expense = df_expense_all[df_expense_all['조회월'] == selected_month]
+    period_title = f"{selected_month} 월간"
+
+# 선택한 팀에 해당하는 데이터만 걸러냄 (지출내역용)
+if selected_team != "전체 팀":
+    filtered_expense_detail = filtered_expense[filtered_expense['팀명'] == selected_team]
+else:
+    filtered_expense_detail = filtered_expense
+
+# --- [통합 데이터 재계산] ---
+# 필터링된 지출 데이터를 팀별로 다시 합산
+expense_sum = filtered_expense.groupby('팀명')['금액'].sum().reset_index()
+expense_sum.rename(columns={'금액': '기간지출'}, inplace=True)
+
+# 예산 정보와 합치기
+df_dashboard = pd.merge(df_budget_base, expense_sum, on='팀명', how='left').fillna(0)
+
+# 잔액 및 집행률 계산
+# 주의: '전체 누적'이 아닐 때도 '연간 총예산' 대비 '해당 월 지출' 비율을 보여줄지 고민 필요
+# 여기서는 (연간 총예산) - (선택 기간 지출) = (기간 잔액) 개념으로 보여줍니다.
+df_dashboard['잔액'] = df_dashboard['총예산'] - df_dashboard['기간지출']
+df_dashboard['집행률'] = df_dashboard.apply(lambda x: (x['기간지출'] / x['총예산'] * 100) if x['총예산'] > 0 else 0, axis=1)
+
+# 선택한 팀만 대시보드에 보여주기 (옵션)
+if selected_team != "전체 팀":
+    df_dashboard = df_dashboard[df_dashboard['팀명'] == selected_team]
+
+
+# --- [메인 화면 구성] ---
+st.title(f"🏭 공장 예산 집행 현황 ({period_title})")
+st.markdown("좌측 사이드바(화살표)를 눌러 **월별/팀별 조회 조건**을 변경할 수 있습니다.")
 
 # [상단 요약]
-total_budget = df_summary['총예산'].sum()
-total_spent = df_summary['총지출'].sum()
-total_remain = df_summary['잔액'].sum()
-total_rate = (total_spent / total_budget * 100) if total_budget > 0 else 0
+total_b = df_dashboard['총예산'].sum()
+total_s = df_dashboard['기간지출'].sum()
+total_r = df_dashboard['잔액'].sum()
+avg_rate = (total_s / total_b * 100) if total_b > 0 else 0
 
 c1, c2, c3 = st.columns(3)
-c1.metric("총 예산 (기본+추가)", f"{total_budget:,.0f}원")
-c2.metric("총 지출액 (실시간)", f"{total_spent:,.0f}원", f"{total_rate:.1f}%")
-c3.metric("총 잔액", f"{total_remain:,.0f}원")
+c1.metric("총 예산 (연간)", f"{total_b:,.0f}원")
+c2.metric(f"{period_title} 집행액", f"{total_s:,.0f}원", f"{avg_rate:.1f}% 사용")
+c3.metric("현재 잔액", f"{total_r:,.0f}원")
 
 st.divider()
 
-# [메인: 팀별 현황 카드]
-st.subheader("👥 팀별 예산 집행 현황")
-cols = st.columns(3)
-for i, row in df_summary.iterrows():
-    with cols[i % 3]:
+# [팀별 카드 뷰]
+st.subheader(f"👥 {period_title} 팀별 집행 현황")
+
+# 카드 그리드 (3열)
+rows = st.columns(3)
+for i, row in df_dashboard.reset_index().iterrows():
+    with rows[i % 3]:
         with st.container(border=True):
-            status = "🟢"
-            if row['집행률'] >= 100: status = "🔴"
-            elif row['집행률'] >= 80: status = "🟡"
+            # 상태 아이콘 (월별 조회 시 기준을 좀 낮게 잡을 수도 있지만, 일단 통일)
+            icon = "🟢"
+            if row['집행률'] >= 80: icon = "⚠️" 
+            if row['집행률'] >= 100: icon = "🚨"
             
-            st.write(f"### {status} {row['팀명']}")
+            st.markdown(f"### {icon} {row['팀명']}")
+            st.write(f"**집행률: {row['집행률']:.1f}%**")
             st.progress(min(row['집행률']/100, 1.0))
             
             c_a, c_b = st.columns(2)
-            c_a.caption("총 예산")
+            c_a.caption("연간 예산")
             c_a.write(f"{row['총예산']:,.0f}")
-            c_b.caption("현재 지출")
-            c_b.write(f"{row['총지출']:,.0f}")
-            
-            st.markdown(f"**잔액: {row['잔액']:,.0f}원** ({row['집행률']:.1f}%)")
+            c_b.caption(f"{period_title} 지출")
+            c_b.write(f"**{row['기간지출']:,.0f}**")
 
 st.divider()
 
-# [하단: 상세 분석]
-tab1, tab2 = st.tabs(["📊 월별 누계 관리표", "📝 상세 지출 내역"])
+# [하단 상세 내역]
+st.subheader("📝 상세 지출 내역 (필터 적용됨)")
 
-with tab1:
+# 컬럼 순서 정리 및 포맷팅
+if not filtered_expense_detail.empty:
+    # 보기 좋은 컬럼 순서
+    cols_to_show = [c for c in ['날짜', '팀명', '대분류', '소분류', '상세내역', '금액'] if c in filtered_expense_detail.columns]
+    
     st.dataframe(
-        df_summary.style.format({
-            '총예산': '{:,.0f}', '총지출': '{:,.0f}', '잔액': '{:,.0f}', '집행률': '{:.1f}%'
-        }).background_gradient(subset=['집행률'], cmap='OrRd'),
+        filtered_expense_detail[cols_to_show]
+        .sort_values('날짜', ascending=False)
+        .style.format({'금액': '{:,.0f}원'}),
         use_container_width=True
     )
-
-with tab2:
-    st.caption("최근 지출 내역 (지출내역 시트 데이터)")
-    # 날짜 기준 내림차순 정렬 (날짜 컬럼이 있다고 가정)
-    if '날짜' in df_detail.columns:
-        df_detail['날짜'] = pd.to_datetime(df_detail['날짜'], errors='coerce')
-        df_detail = df_detail.sort_values('날짜', ascending=False)
-        df_detail['날짜'] = df_detail['날짜'].dt.strftime('%Y-%m-%d') # 보기 좋게 포맷팅
-    
-    st.dataframe(df_detail, use_container_width=True)
-
-# [AI 분석]
-with st.expander("🤖 Gemini AI 경영 리포트 생성"):
-    if st.button("예산 vs 실적 분석 실행"):
-        with st.spinner("데이터 병합 분석 중..."):
-            prompt = f"""
-            너는 공장 재무 담당자야.
-            기준정보(예산)와 지출내역(실적)을 비교한 데이터야.
-            
-            [데이터 요약]
-            {df_summary.to_string()}
-            
-            1. 예산 대비 초과 지출이 발생한(또는 임박한) 팀을 지목해줘.
-            2. 현재 공장의 자금 소진 속도가 적절한지 평가해줘.
-            """
-            response = model.generate_content(prompt)
-            st.markdown(response.text)
+else:
+    st.info("해당 조건의 지출 내역이 없습니다.")
