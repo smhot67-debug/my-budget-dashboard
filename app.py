@@ -9,7 +9,7 @@ st.set_page_config(page_title="공장 경영관리 AI 대시보드", layout="wid
 # 동권님의 설정값
 API_KEY = "AIzaSyAkhIIHXg2XJSBHfrkhxGP_0iW1KZZJlZc"
 # 구글 시트 주소 (CSV 출력 모드)
-SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6hnNtH_1tBFJoA25lXzFPjKUGpBfu0H313_QVFDPdHOpWDDQSJQvIlOQpUoczNO7z7jyWbE171ApD/pubhtml"
+SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6hnNtH_1tBFJoA25lXzFPjKUGpBfu0H313_QVFDPdHOpWDDQSJQvIlOQpUoczNO7z7jyWbE171ApD/pub?output=csv"
 
 genai.configure(api_key=API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
@@ -69,3 +69,4 @@ except Exception as e:
 # 하단에 동권님의 원본 HTML 폼 디자인 가이드 추가 (필요시 참고용)
 with st.expander("원본 폼 디자인 가이드 보기"):
     st.write("동권 님이 제작하신 HTML 기반 UI 가이드는 내부 시스템에 저장되어 있으며, 향후 시각화 차트 업데이트 시 참조됩니다.")
+
