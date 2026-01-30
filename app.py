@@ -1,32 +1,37 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import google.generativeai as genai
+import plotly.graph_objects as go
 
-# 1. 환경 설정
-st.set_page_config(page_title="공장 예산관리 통합 시스템", layout="wide")
+# -----------------------------------------------------------------------------
+# 1. 페이지 설정
+# -----------------------------------------------------------------------------
+st.set_page_config(
+    page_title="공장 예산관리 프로",
+    page_icon="🏭",
+    layout="wide"
+)
 
-# API 키 및 구글 시트 주소 (엑셀 형식)
-API_KEY = "AIzaSyAkhIIHXg2XJSBHfrkhxGP_0iW1KZZJlZc"
+# 구글 시트 주소 (엑셀 형식)
 SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6hnNtH_1tBFJoA25lXzFPjKUGpBfu0H313_QVFDPdHOpWDDQSJQvIlOQpUoczNO7z7jyWbE171ApD/pub?output=xlsx"
 
-genai.configure(api_key=API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
-
-# 2. 데이터 로드 및 전처리
+# -----------------------------------------------------------------------------
+# 2. 데이터 로드 함수 (오류 수정됨)
+# -----------------------------------------------------------------------------
 @st.cache_data(ttl=60)
-def load_data_pro():
+def load_data_visual():
     try:
+        # 엑셀 파일 로드
         sheets = pd.read_excel(SHEET_URL, sheet_name=None)
         
-        # 시트 이름 자동 찾기
+        # 시트 찾기
         budget_sheet = next((s for s in sheets.keys() if '기준' in s or 'Budget' in s), None)
         expense_sheet = next((s for s in sheets.keys() if '지출' in s or 'Expense' in s), None)
         
         if not budget_sheet or not expense_sheet:
-            return "Err", "시트 이름을 찾을 수 없습니다. (기준정보/지출내역 시트 필요)"
+            return False, "시트 이름 오류: '기준정보'와 '지출내역' 시트가 필요합니다.", None
 
-        # [A] 예산 데이터 (기준정보)
+        # [A] 기준정보 (예산)
         df_budget = sheets[budget_sheet].fillna(0)
         # 숫자 정제
         for col in df_budget.columns:
@@ -37,141 +42,176 @@ def load_data_pro():
         df_budget['총예산'] = df_budget.iloc[:, 1:].sum(axis=1)
         df_base = df_budget[['팀명', '총예산']]
 
-        # [B] 지출 데이터 (지출내역)
+        # [B] 지출내역
         df_expense = sheets[expense_sheet].fillna(0)
         
-        # 날짜 컬럼 처리 (필터링을 위해 필수)
+        # 날짜 컬럼 처리
         date_col = next((c for c in df_expense.columns if '날짜' in c or 'Date' in c), None)
         if date_col:
             df_expense[date_col] = pd.to_datetime(df_expense[date_col], errors='coerce')
-            # '월(Month)' 컬럼 생성 (예: 2026-01)
-            df_expense['조회월'] = df_expense[date_col].dt.strftime('%Y-%m')
+            df_expense['월'] = df_expense[date_col].dt.strftime('%Y-%m')
         else:
-            df_expense['조회월'] = '날짜없음'
+            df_expense['월'] = '날짜없음'
 
         if '금액' in df_expense.columns:
             df_expense['금액'] = pd.to_numeric(df_expense['금액'], errors='coerce').fillna(0)
 
-        return df_base, df_expense
+        return True, df_base, df_expense
 
     except Exception as e:
-        return "Err", str(e)
+        return False, str(e), None
 
+# -----------------------------------------------------------------------------
 # 3. UI 렌더링
-result = load_data_pro()
+# -----------------------------------------------------------------------------
+status, data1, data2 = load_data_visual()
 
-if result[0] == "Err":
-    st.error(f"데이터 오류: {result[1]}")
+if not status:
+    st.error(f"데이터 로드 실패: {data1}")
     st.stop()
 
-df_budget_base, df_expense_all = result
+df_base = data1     # 팀별 예산 기준정보
+df_expense = data2  # 전체 지출 내역
 
-# --- [사이드바 컨트롤] ---
-# 여기서 월을 선택하면 전체 대시보드가 바뀝니다.
-st.sidebar.header("🔍 조회 필터")
-
-# 1. 월 선택 콤보박스 (데이터에 있는 월만 추출)
-available_months = sorted(list(set(df_expense_all['조회월'].dropna())))
-if '날짜없음' in available_months: available_months.remove('날짜없음')
-
-# '전체 누적'을 기본으로 추가
-month_options = ["전체 누적"] + available_months
-selected_month = st.sidebar.selectbox("📅 조회 기간 (월)", month_options)
-
-# 2. 팀 선택 콤보박스
-team_options = ["전체 팀"] + list(df_budget_base['팀명'].unique())
-selected_team = st.sidebar.selectbox("🏢 부서 선택", team_options)
-
-
-# --- [데이터 필터링 로직] ---
-# 선택한 월에 해당하는 지출 데이터만 걸러냄
-if selected_month == "전체 누적":
-    filtered_expense = df_expense_all
-    period_title = "전체 누적"
-else:
-    filtered_expense = df_expense_all[df_expense_all['조회월'] == selected_month]
-    period_title = f"{selected_month} 월간"
-
-# 선택한 팀에 해당하는 데이터만 걸러냄 (지출내역용)
-if selected_team != "전체 팀":
-    filtered_expense_detail = filtered_expense[filtered_expense['팀명'] == selected_team]
-else:
-    filtered_expense_detail = filtered_expense
-
-# --- [통합 데이터 재계산] ---
-# 필터링된 지출 데이터를 팀별로 다시 합산
-expense_sum = filtered_expense.groupby('팀명')['금액'].sum().reset_index()
-expense_sum.rename(columns={'금액': '기간지출'}, inplace=True)
-
-# 예산 정보와 합치기
-df_dashboard = pd.merge(df_budget_base, expense_sum, on='팀명', how='left').fillna(0)
-
-# 잔액 및 집행률 계산
-# 주의: '전체 누적'이 아닐 때도 '연간 총예산' 대비 '해당 월 지출' 비율을 보여줄지 고민 필요
-# 여기서는 (연간 총예산) - (선택 기간 지출) = (기간 잔액) 개념으로 보여줍니다.
-df_dashboard['잔액'] = df_dashboard['총예산'] - df_dashboard['기간지출']
-df_dashboard['집행률'] = df_dashboard.apply(lambda x: (x['기간지출'] / x['총예산'] * 100) if x['총예산'] > 0 else 0, axis=1)
-
-# 선택한 팀만 대시보드에 보여주기 (옵션)
-if selected_team != "전체 팀":
-    df_dashboard = df_dashboard[df_dashboard['팀명'] == selected_team]
-
-
-# --- [메인 화면 구성] ---
-st.title(f"🏭 공장 예산 집행 현황 ({period_title})")
-st.markdown("좌측 사이드바(화살표)를 눌러 **월별/팀별 조회 조건**을 변경할 수 있습니다.")
-
-# [상단 요약]
-total_b = df_dashboard['총예산'].sum()
-total_s = df_dashboard['기간지출'].sum()
-total_r = df_dashboard['잔액'].sum()
-avg_rate = (total_s / total_b * 100) if total_b > 0 else 0
-
-c1, c2, c3 = st.columns(3)
-c1.metric("총 예산 (연간)", f"{total_b:,.0f}원")
-c2.metric(f"{period_title} 집행액", f"{total_s:,.0f}원", f"{avg_rate:.1f}% 사용")
-c3.metric("현재 잔액", f"{total_r:,.0f}원")
-
-st.divider()
-
-# [팀별 카드 뷰]
-st.subheader(f"👥 {period_title} 팀별 집행 현황")
-
-# 카드 그리드 (3열)
-rows = st.columns(3)
-for i, row in df_dashboard.reset_index().iterrows():
-    with rows[i % 3]:
-        with st.container(border=True):
-            # 상태 아이콘 (월별 조회 시 기준을 좀 낮게 잡을 수도 있지만, 일단 통일)
-            icon = "🟢"
-            if row['집행률'] >= 80: icon = "⚠️" 
-            if row['집행률'] >= 100: icon = "🚨"
-            
-            st.markdown(f"### {icon} {row['팀명']}")
-            st.write(f"**집행률: {row['집행률']:.1f}%**")
-            st.progress(min(row['집행률']/100, 1.0))
-            
-            c_a, c_b = st.columns(2)
-            c_a.caption("연간 예산")
-            c_a.write(f"{row['총예산']:,.0f}")
-            c_b.caption(f"{period_title} 지출")
-            c_b.write(f"**{row['기간지출']:,.0f}**")
-
-st.divider()
-
-# [하단 상세 내역]
-st.subheader("📝 상세 지출 내역 (필터 적용됨)")
-
-# 컬럼 순서 정리 및 포맷팅
-if not filtered_expense_detail.empty:
-    # 보기 좋은 컬럼 순서
-    cols_to_show = [c for c in ['날짜', '팀명', '대분류', '소분류', '상세내역', '금액'] if c in filtered_expense_detail.columns]
+# --- [사이드바 필터] ---
+with st.sidebar:
+    st.header("🔍 조회 조건 설정")
     
-    st.dataframe(
-        filtered_expense_detail[cols_to_show]
-        .sort_values('날짜', ascending=False)
-        .style.format({'금액': '{:,.0f}원'}),
-        use_container_width=True
-    )
+    # 1. 월 선택
+    month_list = sorted([m for m in df_expense['월'].unique() if m != '날짜없음'])
+    period_option = st.selectbox("📅 조회 기간", ["전체 누적"] + month_list, index=0)
+    
+    # 2. 팀 선택
+    team_list = sorted(df_base['팀명'].unique())
+    team_option = st.selectbox("🏢 부서 선택", ["전체 부서"] + team_list, index=0)
+    
+    st.divider()
+    st.info("💡 '전체 누적' 선택 시 연간 총 예산 대비 사용량을 보여줍니다.")
+
+# --- [데이터 필터링] ---
+# 1. 기간 필터
+if period_option == "전체 누적":
+    df_filtered_exp = df_expense
+    period_label = "전체 기간"
 else:
-    st.info("해당 조건의 지출 내역이 없습니다.")
+    df_filtered_exp = df_expense[df_expense['월'] == period_option]
+    period_label = f"{period_option} 월간"
+
+# 2. 팀 필터 (지출내역용)
+if team_option != "전체 부서":
+    df_filtered_exp_detail = df_filtered_exp[df_filtered_exp['팀명'] == team_option]
+    # 기준정보도 해당 팀만 남김
+    df_base_filtered = df_base[df_base['팀명'] == team_option]
+else:
+    df_filtered_exp_detail = df_filtered_exp
+    df_base_filtered = df_base
+
+# 3. 데이터 합산 (대시보드용)
+exp_summary = df_filtered_exp.groupby('팀명')['금액'].sum().reset_index().rename(columns={'금액': '사용액'})
+df_main = pd.merge(df_base_filtered, exp_summary, on='팀명', how='left').fillna(0)
+
+# 지표 계산
+df_main['잔액'] = df_main['총예산'] - df_main['사용액']
+df_main['집행률'] = df_main.apply(lambda x: (x['사용액'] / x['총예산'] * 100) if x['총예산'] > 0 else 0, axis=1)
+
+# --- [메인 화면] ---
+st.title(f"📊 공장 예산 집행 현황")
+st.markdown(f"**{period_label}** 기준 / **{team_option}** 조회 결과입니다.")
+
+# [1. KPI 요약 카드]
+total_budget = df_main['총예산'].sum()
+total_spent = df_main['사용액'].sum()
+total_remain = df_main['잔액'].sum()
+avg_rate = (total_spent / total_budget * 100) if total_budget > 0 else 0
+
+kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+kpi1.metric("총 배정 예산", f"{total_budget:,.0f}원")
+kpi2.metric(f"현재 사용액 ({period_label})", f"{total_spent:,.0f}원", f"{avg_rate:.1f}%")
+kpi3.metric("현재 잔액", f"{total_remain:,.0f}원")
+kpi4.metric("지출 건수", f"{len(df_filtered_exp_detail):,}건")
+
+st.divider()
+
+# [2. 시각화 차트 영역]
+c1, c2 = st.columns([6, 4])
+
+with c1:
+    st.subheader("📈 팀별 예산 vs 사용액 비교")
+    if not df_main.empty:
+        # 막대 그래프 (Budget vs Actual)
+        fig = go.Figure()
+        fig.add_trace(go.Bar(
+            x=df_main['팀명'], y=df_main['총예산'],
+            name='배정예산', marker_color='#e2e8f0'
+        ))
+        fig.add_trace(go.Bar(
+            x=df_main['팀명'], y=df_main['사용액'],
+            name='사용액', marker_color='#3b82f6',
+            text=df_main['집행률'].apply(lambda x: f'{x:.1f}%'),
+            textposition='auto'
+        ))
+        fig.update_layout(barmode='group', margin=dict(t=0, b=0, l=0, r=0), height=350)
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("표시할 데이터가 없습니다.")
+
+with c2:
+    st.subheader(f"💰 {period_label} 지출 비중")
+    if total_spent > 0:
+        fig_pie = px.pie(df_main, values='사용액', names='팀명', hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+        fig_pie.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=350)
+        st.plotly_chart(fig_pie, use_container_width=True)
+    else:
+        st.info("지출 내역이 없어 차트를 표시할 수 없습니다.")
+
+st.divider()
+
+# [3. 상세 내역 (카드뷰 & 테이블)]
+tab_card, tab_table = st.tabs(["🗂️ 팀별 현황 카드", "📝 상세 지출 내역서"])
+
+with tab_card:
+    # 3열 카드 배치
+    rows = st.columns(3)
+    for i, row in df_main.reset_index().iterrows():
+        with rows[i % 3]:
+            with st.container(border=True):
+                # 아이콘 상태 로직
+                state_icon = "🟢"
+                bar_color = "blue"
+                if row['집행률'] >= 80: 
+                    state_icon = "⚠️"
+                    bar_color = "orange"
+                if row['집행률'] >= 100: 
+                    state_icon = "🚨"
+                    bar_color = "red"
+                
+                st.markdown(f"#### {state_icon} {row['팀명']}")
+                st.progress(min(row['집행률']/100, 1.0))
+                
+                c_left, c_right = st.columns(2)
+                with c_left:
+                    st.caption("예산")
+                    st.write(f"**{row['총예산']:,.0f}**")
+                with c_right:
+                    st.caption("사용")
+                    st.write(f"**{row['사용액']:,.0f}**")
+                
+                st.markdown("---")
+                st.markdown(f"**잔액: {row['잔액']:,.0f}원**")
+
+with tab_table:
+    st.markdown(f"##### 📑 {team_option} - {period_label} 지출 상세")
+    
+    if not df_filtered_exp_detail.empty:
+        # 보기 좋은 컬럼만 선택
+        display_cols = [c for c in ['날짜', '팀명', '대분류', '소분류', '상세내역', '금액'] if c in df_filtered_exp_detail.columns]
+        
+        st.dataframe(
+            df_filtered_exp_detail[display_cols]
+            .sort_values('날짜', ascending=False)
+            .style.format({'금액': '{:,.0f}원', '날짜': '{:%Y-%m-%d}'}),
+            use_container_width=True,
+            height=400
+        )
+    else:
+        st.warning("해당 조건의 상세 지출 내역이 없습니다.")
