@@ -235,29 +235,29 @@ if menu == "💰 예산 관리":
 
     with col_list:
         st.subheader("🏢 팀별 집행 현황")
-        with st.container(height=400):
-            if not df_dash.empty:
-                for i, row in df_dash.iterrows():
-                    pct = min(row['집행률'], 100)
-                    status_color = "#2563eb" if pct < 80 else ("#d97706" if pct < 100 else "#dc2626")
-                    
-                    st.markdown(f"""
-                        <div style="background:white; padding:15px; border-radius:10px; border:1px solid #e2e8f0; margin-bottom:10px;">
-                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                                <span style="font-weight:bold; color:#1e293b;">{row['팀명']}</span>
-                                <span style="font-weight:bold; color:{status_color};">{row['집행률']:.1f}%</span>
-                            </div>
-                            <div style="width:100%; background-color:#f1f5f9; height:8px; border-radius:4px; margin-bottom:8px;">
-                                <div style="width:{pct}%; background-color:{status_color}; height:8px; border-radius:4px;"></div>
-                            </div>
-                            <div style="display:flex; justify-content:space-between; font-size:0.85rem; color:#64748b;">
-                                <span>예산: {row['총예산']:,.0f}</span>
-                                <span>잔액: <strong>{row['잔액']:,.0f}</strong></span>
-                            </div>
+        if not df_dash.empty:
+            # [수정: 스크롤 제거] height 제한을 없애서 한 번에 보이게 함
+            for i, row in df_dash.iterrows():
+                pct = min(row['집행률'], 100)
+                status_color = "#2563eb" if pct < 80 else ("#d97706" if pct < 100 else "#dc2626")
+                
+                st.markdown(f"""
+                    <div style="background:white; padding:15px; border-radius:10px; border:1px solid #e2e8f0; margin-bottom:10px;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                            <span style="font-weight:bold; color:#1e293b;">{row['팀명']}</span>
+                            <span style="font-weight:bold; color:{status_color};">{row['집행률']:.1f}%</span>
                         </div>
-                    """, unsafe_allow_html=True)
-            else:
-                st.info("데이터 없음")
+                        <div style="width:100%; background-color:#f1f5f9; height:8px; border-radius:4px; margin-bottom:8px;">
+                            <div style="width:{pct}%; background-color:{status_color}; height:8px; border-radius:4px;"></div>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; font-size:0.85rem; color:#64748b;">
+                            <span>예산: {row['총예산']:,.0f}</span>
+                            <span>잔액: <strong>{row['잔액']:,.0f}</strong></span>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("데이터 없음")
 
     st.subheader("📝 상세 지출 내역")
     
@@ -408,18 +408,32 @@ elif menu == "🏖️ 연차 관리":
     st.divider()
     st.subheader("👥 전체 임직원 명부")
     
-    # 전체 명부 (콤마 적용 및 깔끔한 표)
-    df_show = df_leave.copy()
-    st.dataframe(
-        df_show[['소속', '성명', '합계', '사용일수', '잔여일수', '부채잔액']],
-        use_container_width=True,
-        column_config={
-            "소속": st.column_config.TextColumn("부서", width="small"),
-            "성명": st.column_config.TextColumn("이름", width="small"),
-            "합계": st.column_config.NumberColumn("총 연차", format="%.1f"),
-            "사용일수": st.column_config.ProgressColumn("사용 현황", format="%.1f", min_value=0, max_value=25),
-            "잔여일수": st.column_config.NumberColumn("잔여", format="%.1f"),
-            "부채잔액": st.column_config.NumberColumn("예상 부채", format="%d원")
-        },
-        hide_index=True
-    )
+    # [수정] 전체 임직원 명부도 예산 상세 내역과 동일한 리스트 디자인 적용
+    df_show = df_leave.sort_values('소속').copy()
+    
+    # Header
+    st.markdown("""
+        <div class="custom-header">
+            <div class="row-item">소속</div>
+            <div class="row-item">성명</div>
+            <div class="row-item">총 연차</div>
+            <div class="row-item">사용</div>
+            <div class="row-item">잔여</div>
+            <div class="row-item" style="text-align:right; padding-right:20px;">예상 부채</div>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # Rows
+    with st.container(height=500): # 리스트가 길어질 수 있으므로 적절한 스크롤 유지
+        for _, row in df_show.iterrows():
+            debt = f"{int(row['부채잔액']):,}원"
+            st.markdown(f"""
+                <div class="custom-row">
+                    <div class="row-item" style="color:#64748b;">{row['소속']}</div>
+                    <div class="row-item"><strong>{row['성명']}</strong></div>
+                    <div class="row-item">{row['합계']:.1f}</div>
+                    <div class="row-item">{row['사용일수']:.1f}</div>
+                    <div class="row-item"><span class="badge badge-blue">{row['잔여일수']:.1f}</span></div>
+                    <div class="row-item" style="text-align:right; padding-right:20px; font-weight:bold; color:#1e293b;">{debt}</div>
+                </div>
+            """, unsafe_allow_html=True)
