@@ -47,21 +47,21 @@ st.markdown("""
             color: #1e293b;
         }
 
-        /* 4. 합계/요약 박스 스타일 */
+        /* 4. 합계/요약 박스 스타일 (반응형 수정) */
         .summary-box {
             background-color: #f1f5f9;
             border-left: 5px solid #3b82f6;
             padding: 20px;
             border-radius: 8px;
             margin-bottom: 20px;
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); /* 반응형 그리드 */
+            gap: 10px;
             text-align: center;
         }
         .summary-item strong {
             display: block;
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             color: #0f172a;
             margin-top: 5px;
         }
@@ -71,8 +71,19 @@ st.markdown("""
             font-weight: 600;
         }
 
-        /* 5. 테이블 헤더 */
-        th { color: #475569 !important; background-color: #f8fafc !important; }
+        /* 5. 카드 리스트 스타일 */
+        .card-container {
+            background-color: white;
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #e2e8f0;
+            margin-bottom: 10px;
+            transition: transform 0.2s;
+        }
+        .card-container:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -204,20 +215,17 @@ if menu == "💰 예산 관리":
     st.markdown("<br>", unsafe_allow_html=True)
 
     # KPI
-    tot_b = df_dash['총예산'].sum()
-    tot_s = df_dash['사용액'].sum()
-    tot_r = df_dash['잔액'].sum()
+    tot_b, tot_s, tot_r = df_dash['총예산'].sum(), df_dash['사용액'].sum(), df_dash['잔액'].sum()
     avg_r = (tot_s / tot_b * 100) if tot_b > 0 else 0
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("총 배정 예산", f"{tot_b:,.0f}", delta="Budget")
-    c2.metric("총 사용액", f"{tot_s:,.0f}", f"{avg_r:.1f}%", delta_color="inverse")
-    c3.metric("현재 잔액", f"{tot_r:,.0f}", delta="Remain")
+    c1.metric("총 배정 예산", f"{tot_b:,.0f}원", delta="Budget")
+    c2.metric("총 사용액", f"{tot_s:,.0f}원", f"{avg_r:.1f}%", delta_color="inverse")
+    c3.metric("현재 잔액", f"{tot_r:,.0f}원", delta="Remain")
     c4.metric("지출 건수", f"{len(df_filtered):,}건")
 
     st.divider()
 
-    # 차트 & 팀별 현황
     col_chart, col_list = st.columns([4, 6])
     with col_chart:
         st.subheader("📊 예산 집행률")
@@ -232,20 +240,29 @@ if menu == "💰 예산 관리":
     with col_list:
         st.subheader("🏢 팀별 집행 현황")
         if not df_dash.empty:
+            # [UI 개선] 엑셀 표 대신 카드 리스트(App-like) 사용
             with st.container(height=400):
                 for i, row in df_dash.iterrows():
                     pct = min(row['집행률'], 100)
-                    color = "#2563eb" if pct < 80 else ("#d97706" if pct < 100 else "#dc2626")
-                    c_a, c_b, c_c = st.columns([3, 4, 3])
-                    with c_a:
-                        st.markdown(f"**{row['팀명']}**")
-                        st.caption(f"예산 {row['총예산']:,.0f}")
-                    with c_b:
-                        st.progress(pct/100)
-                        st.caption(f"사용 {row['사용액']:,.0f} ({row['집행률']:.1f}%)")
-                    with c_c:
-                        st.markdown(f"<div style='text-align:right; color:{color}; font-weight:bold;'>{row['잔액']:,.0f}</div>", unsafe_allow_html=True)
-                    st.divider()
+                    color_bar = "bg-blue-600" if pct < 80 else ("bg-yellow-500" if pct < 100 else "bg-red-600")
+                    status_color = "#2563eb" if pct < 80 else ("#d97706" if pct < 100 else "#dc2626")
+                    
+                    # HTML Card Layout
+                    st.markdown(f"""
+                        <div class="card-container">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                                <span style="font-weight:bold; font-size:1.1rem; color:#1e293b;">{row['팀명']}</span>
+                                <span style="font-weight:bold; color:{status_color};">{row['집행률']:.1f}%</span>
+                            </div>
+                            <div style="width:100%; background-color:#e2e8f0; height:8px; border-radius:4px; margin-bottom:8px;">
+                                <div style="width:{pct}%; background-color:{status_color}; height:8px; border-radius:4px;"></div>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; font-size:0.9rem; color:#64748b;">
+                                <span>예산: {row['총예산']:,.0f}</span>
+                                <span>잔액: <strong>{row['잔액']:,.0f}</strong></span>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
         else:
             st.info("데이터 없음")
 
@@ -253,33 +270,27 @@ if menu == "💰 예산 관리":
     
     # 합계 박스 (콤마 적용)
     st.markdown(f"""
-        <div class="summary-box" style="justify-content: space-between; text-align: left; padding: 15px 30px;">
+        <div class="summary-box" style="justify-content: space-between; text-align: left; padding: 15px 30px; display:flex;">
             <div style="font-weight: bold; color: #475569;">🧾 현재 조회 내역 합계</div>
             <div style="font-size: 1.5rem; font-weight: 800; color: #2563eb;">{df_filtered['금액'].sum():,.0f} 원</div>
         </div>
     """, unsafe_allow_html=True)
 
     if not df_filtered.empty:
-        # [표시용 데이터 생성] 콤마 적용을 위해 문자열 변환
         df_display = df_filtered.copy()
-        df_display['표시금액'] = df_display['금액'].apply(lambda x: f"{int(x):,}원") # 1000 -> 1,000원
         
-        cols_show = ['날짜', '팀명', '대분류', '소분류', '상세내역', '표시금액']
-        # 실제 데이터에 있는 컬럼만 선택
-        cols_show = [c for c in cols_show if c in df_display.columns or c == '표시금액']
+        # 표시용 컬럼 정리
+        cols_show = ['날짜', '팀명', '대분류', '소분류', '상세내역', '금액']
+        df_display = df_display[[c for c in cols_show if c in df_display.columns]]
         
+        # [UI 개선] Pandas Styler를 사용한 가운데 정렬 (Streamlit 데이터프레임의 한계 극복)
         st.dataframe(
-            df_display[cols_show].sort_values('날짜', ascending=False),
-            column_config={
-                "날짜": st.column_config.DateColumn("일자", format="YYYY-MM-DD", width="small"),
-                "팀명": st.column_config.TextColumn("부서", width="small"),
-                "대분류": st.column_config.TextColumn("대분류", width="small"),
-                "소분류": st.column_config.TextColumn("소분류", width="small"),
-                "상세내역": st.column_config.TextColumn("적요", width="large"),
-                "표시금액": st.column_config.TextColumn("금액", width="medium") # TextColumn으로 해야 커스텀 포맷(1,000원) 유지됨
-            },
-            hide_index=True,
-            use_container_width=True
+            df_display.sort_values('날짜', ascending=False).style
+            .format({'금액': '{:,.0f}원', '날짜': '{:%Y-%m-%d}'}) # 포맷팅
+            .set_properties(**{'text-align': 'center'}) # 가운데 정렬 강제
+            .set_table_styles([dict(selector='th', props=[('text-align', 'center')])]), # 헤더도 가운데
+            use_container_width=True,
+            hide_index=True
         )
     else:
         st.info("해당 조건의 지출 내역이 없습니다.")
@@ -320,6 +331,7 @@ elif menu == "🏖️ 연차 관리":
     if leave_dept_option != "전체":
         df_leave = df_leave[df_leave['소속'] == leave_dept_option]
 
+    # 리스크 그룹 (필터 적용 후) & 정렬
     df_risk_final = df_leave[df_leave['잔여일수'] >= risk_criteria].sort_values('잔여일수', ascending=False)
 
     # 2. 연차 대시보드 화면
@@ -359,7 +371,7 @@ elif menu == "🏖️ 연차 관리":
             r_rem = df_risk_final['잔여일수'].sum()
             r_rate = (r_used / r_total * 100) if r_total > 0 else 0
             
-            # 요약 박스 디자인
+            # [수정] 요약 박스 반응형 처리 (화면 넘침 방지)
             st.markdown(f"""
                 <div class="summary-box">
                     <div class="summary-item"><span>대상자 총 연차</span><strong>{r_total:,.1f}</strong></div>
@@ -369,16 +381,15 @@ elif menu == "🏖️ 연차 관리":
                 </div>
             """, unsafe_allow_html=True)
 
+            # [수정] 가운데 정렬 및 스타일링 적용
             st.dataframe(
-                df_risk_final[['소속', '성명', '잔여일수', '사용일수', '합계']],
+                df_risk_final[['소속', '성명', '잔여일수', '사용일수', '합계']].style
+                .format({'잔여일수': '{:.1f}일', '사용일수': '{:.1f}일', '합계': '{:.1f}일'})
+                .background_gradient(subset=['잔여일수'], cmap='Reds')
+                .set_properties(**{'text-align': 'center'})
+                .set_table_styles([dict(selector='th', props=[('text-align', 'center')])]),
                 use_container_width=True,
                 height=300,
-                column_config={
-                    "소속": st.column_config.TextColumn("부서"),
-                    "잔여일수": st.column_config.NumberColumn("잔여", format="%.1f일"),
-                    "사용일수": st.column_config.NumberColumn("사용", format="%.1f일"),
-                    "합계": st.column_config.NumberColumn("총 연차", format="%.1f일")
-                },
                 hide_index=True
             )
         else:
@@ -391,18 +402,17 @@ elif menu == "🏖️ 연차 관리":
     
     # 표시용 데이터 생성 (콤마 포맷팅)
     df_leave_display = df_leave.copy()
-    df_leave_display['표시부채'] = df_leave_display['부채잔액'].apply(lambda x: f"{int(x):,}원")
-
+    
+    # [수정] 전체 명부도 가운데 정렬 스타일 적용
+    # 주의: Progress Bar는 st.column_config로만 가능하므로, 
+    # 스타일과 기능 중 하나를 선택해야 할 때가 있습니다. 여기서는 깔끔한 뷰를 위해 스타일 우선 적용 (진행바 대신 숫자로 보여주고 배경색 활용)
+    
     st.dataframe(
-        df_leave_display[['소속', '성명', '합계', '사용일수', '잔여일수', '표시부채']],
+        df_leave_display[['소속', '성명', '합계', '사용일수', '잔여일수', '부채잔액']].style
+        .format({'합계': '{:.1f}', '사용일수': '{:.1f}', '잔여일수': '{:.1f}', '부채잔액': '{:,.0f}원'})
+        .background_gradient(subset=['사용일수'], cmap='Blues')
+        .set_properties(**{'text-align': 'center'})
+        .set_table_styles([dict(selector='th', props=[('text-align', 'center')])]),
         use_container_width=True,
-        column_config={
-            "소속": st.column_config.TextColumn("부서", width="small"),
-            "성명": st.column_config.TextColumn("이름", width="small"),
-            "합계": st.column_config.NumberColumn("총 연차", format="%.1f일"),
-            "사용일수": st.column_config.ProgressColumn("사용 현황", format="%.1f일", min_value=0, max_value=25),
-            "잔여일수": st.column_config.NumberColumn("잔여", format="%.1f일"),
-            "표시부채": st.column_config.TextColumn("예상 부채", width="medium") # TextColumn으로 콤마 유지
-        },
         hide_index=True
     )
