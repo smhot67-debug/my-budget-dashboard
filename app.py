@@ -14,16 +14,28 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# [CSS] 프리미엄 UI 디자인 (폰트, 카드, 정렬)
+# [CSS] 프리미엄 UI 디자인 (폰트 충돌 해결 버전)
 st.markdown("""
     <style>
-        /* 1. 기본 폰트 설정 (시스템 폰트 우선하여 깨짐 방지) */
-        html, body, p, div, span, h1, h2, h3, h4, h5, h6, label, button, input, select, textarea {
-            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+        /* 1. 폰트 설정 (Pretendard) - 아이콘 깨짐 방지를 위해 !important 제거 및 범위 조정 */
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        
+        .stApp {
+            font-family: 'Pretendard', sans-serif;
+            background-color: #f8f9fa;
+        }
+        
+        /* 헤더, 본문 텍스트 폰트 적용 */
+        h1, h2, h3, h4, h5, h6, p, div, span, label, button, input, select, textarea {
+            font-family: 'Pretendard', sans-serif;
+        }
+        
+        /* Streamlit 내부 아이콘 폰트 보호 (이 부분이 깨짐 방지 핵심) */
+        .material-symbols-rounded {
+            font-family: 'Material Symbols Rounded' !important;
         }
 
-        /* 2. 배경색 및 메인 컨테이너 */
-        .stApp { background-color: #f8f9fa; }
+        /* 2. 메인 컨테이너 여백 */
         .block-container { padding-top: 2rem; }
 
         /* 3. 카드 박스 스타일 (Shadow Box) */
@@ -52,6 +64,7 @@ st.markdown("""
             transition: background-color 0.2s;
         }
         .custom-row:hover { background-color: #f8fafc; }
+        
         .custom-header {
             background-color: #f8fafc;
             border-top: 1px solid #e2e8f0;
@@ -63,6 +76,7 @@ st.markdown("""
             display: flex;
             align-items: center;
         }
+        
         .row-item { flex: 1; text-align: center; font-size: 0.95rem; color: #334155; }
         .row-item-left { flex: 1; text-align: left; padding-left: 20px; font-size: 0.95rem; color: #334155; }
         
@@ -109,7 +123,6 @@ def load_all_data():
 
 def clean_dept_name(name):
     if pd.isna(name): return ""
-    # "1. 지원팀" -> "지원팀"
     return re.sub(r'^[\d\.\s]+', '', str(name))
 
 all_sheets = load_all_data()
@@ -235,8 +248,8 @@ if menu == "💰 예산 관리":
 
     with col_list:
         st.subheader("🏢 팀별 집행 현황")
+        # 스크롤 없이 전체 표시 (container 높이 제한 제거)
         if not df_dash.empty:
-            # [수정: 스크롤 제거] height 제한을 없애서 한 번에 보이게 함
             for i, row in df_dash.iterrows():
                 pct = min(row['집행률'], 100)
                 status_color = "#2563eb" if pct < 80 else ("#d97706" if pct < 100 else "#dc2626")
@@ -261,16 +274,17 @@ if menu == "💰 예산 관리":
 
     st.subheader("📝 상세 지출 내역")
     
-    # 합계 박스 (콤마 적용)
+    # 합계 박스
     st.markdown(f"""
-        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 15px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <span style="font-weight: bold; color: #1e3a8a;">🧾 조회 내역 합계</span>
-            <span style="font-size: 1.4rem; font-weight: 800; color: #2563eb;">{df_filtered['금액'].sum():,.0f} 원</span>
+        <div class="total-box">
+            <div style="text-align:left; width:100%; display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-weight: bold; color: #475569;">🧾 조회 내역 합계</span>
+                <span style="font-size: 1.4rem; font-weight: 800; color: #2563eb;">{df_filtered['금액'].sum():,.0f} 원</span>
+            </div>
         </div>
     """, unsafe_allow_html=True)
 
     if not df_filtered.empty:
-        # [UI 개선] 엑셀 스타일 대신 깔끔한 리스트 뷰로 표시 (가운데 정렬)
         df_show = df_filtered.sort_values('날짜', ascending=False).reset_index(drop=True)
         
         # 헤더
@@ -285,7 +299,7 @@ if menu == "💰 예산 관리":
             </div>
         """, unsafe_allow_html=True)
         
-        # 데이터 행 반복 출력 (상용 UI 느낌)
+        # 데이터 행 반복 출력 (스크롤 가능)
         with st.container(height=400):
             for _, row in df_show.iterrows():
                 date_str = row['날짜'].strftime('%Y-%m-%d')
@@ -312,7 +326,7 @@ elif menu == "🏖️ 연차 관리":
         st.stop()
 
     df_leave = all_sheets[leave_sheet_name].fillna(0)
-    df_leave['소속'] = df_leave['소속'].apply(clean_dept_name) # 소속명 정제 (숫자 제거)
+    df_leave['소속'] = df_leave['소속'].apply(clean_dept_name)
 
     # 숫자형 변환
     for col in ['합계', '사용일수', '잔여일수', '부채예산', '부채잔액']:
@@ -329,7 +343,7 @@ elif menu == "🏖️ 연차 관리":
     if leave_dept_option != "전체":
         df_leave = df_leave[df_leave['소속'] == leave_dept_option]
 
-    # 촉진 대상자 (잔여일수 기준 내림차순)
+    # 촉진 대상자
     df_risk = df_leave[df_leave['잔여일수'] >= risk_criteria].sort_values('잔여일수', ascending=False)
 
     # KPI
@@ -359,7 +373,6 @@ elif menu == "🏖️ 연차 관리":
         st.plotly_chart(fig, use_container_width=True)
 
     with c_risk:
-        # [UI 개선] 촉진 대상자 리스트 (이미지 스타일 적용)
         st.subheader(f"🚨 촉진 대상자 (Care Group)")
         
         if not df_risk.empty:
@@ -368,7 +381,7 @@ elif menu == "🏖️ 연차 관리":
             r_rem = df_risk['잔여일수'].sum()
             r_rate = (r_use / r_tot * 100) if r_tot > 0 else 0
             
-            # 요약 박스 (콤마 적용)
+            # 요약 박스
             st.markdown(f"""
                 <div class="total-box">
                     <div><span class="total-label">대상자 총 연차</span><span class="total-value">{r_tot:,.1f}</span></div>
@@ -388,7 +401,7 @@ elif menu == "🏖️ 연차 관리":
                 </div>
             """, unsafe_allow_html=True)
 
-            # 리스트 바디 (스크롤 가능)
+            # 리스트 바디
             with st.container(height=320):
                 for _, row in df_risk.iterrows():
                     st.markdown(f"""
@@ -400,18 +413,17 @@ elif menu == "🏖️ 연차 관리":
                         </div>
                     """, unsafe_allow_html=True)
             
-            # 독려 버튼
-            st.button(f"📧 대상자({len(df_risk)}명) 독려 메일 발송 양식 생성", use_container_width=True)
+            # [삭제] 메일 발송 버튼 제거됨
         else:
             st.success("해당 조건의 촉진 대상자가 없습니다.")
 
     st.divider()
     st.subheader("👥 전체 임직원 명부")
     
-    # [수정] 전체 임직원 명부도 예산 상세 내역과 동일한 리스트 디자인 적용
+    # [수정] 전체 임직원 명부도 커스텀 리스트 UI 적용 + 부채 컬럼 제거
     df_show = df_leave.sort_values('소속').copy()
     
-    # Header
+    # Header (부채 제거)
     st.markdown("""
         <div class="custom-header">
             <div class="row-item">소속</div>
@@ -419,14 +431,12 @@ elif menu == "🏖️ 연차 관리":
             <div class="row-item">총 연차</div>
             <div class="row-item">사용</div>
             <div class="row-item">잔여</div>
-            <div class="row-item" style="text-align:right; padding-right:20px;">예상 부채</div>
         </div>
     """, unsafe_allow_html=True)
     
-    # Rows
-    with st.container(height=500): # 리스트가 길어질 수 있으므로 적절한 스크롤 유지
+    # Rows (부채 제거)
+    with st.container(height=500):
         for _, row in df_show.iterrows():
-            debt = f"{int(row['부채잔액']):,}원"
             st.markdown(f"""
                 <div class="custom-row">
                     <div class="row-item" style="color:#64748b;">{row['소속']}</div>
@@ -434,6 +444,5 @@ elif menu == "🏖️ 연차 관리":
                     <div class="row-item">{row['합계']:.1f}</div>
                     <div class="row-item">{row['사용일수']:.1f}</div>
                     <div class="row-item"><span class="badge badge-blue">{row['잔여일수']:.1f}</span></div>
-                    <div class="row-item" style="text-align:right; padding-right:20px; font-weight:bold; color:#1e293b;">{debt}</div>
                 </div>
             """, unsafe_allow_html=True)
