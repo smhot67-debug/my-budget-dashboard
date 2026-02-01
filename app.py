@@ -3,6 +3,8 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import re
+import qrcode
+from io import BytesIO
 
 # -----------------------------------------------------------------------------
 # 1. 시스템 설정 및 디자인
@@ -14,10 +16,10 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# [CSS] 프리미엄 UI 디자인 (폰트 충돌 해결 버전)
+# [CSS] 프리미엄 UI 디자인
 st.markdown("""
     <style>
-        /* 1. 폰트 설정 (Pretendard) - 아이콘 깨짐 방지를 위해 !important 제거 및 범위 조정 */
+        /* 폰트 설정 (Pretendard) */
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
         
         .stApp {
@@ -25,20 +27,19 @@ st.markdown("""
             background-color: #f8f9fa;
         }
         
-        /* 헤더, 본문 텍스트 폰트 적용 */
         h1, h2, h3, h4, h5, h6, p, div, span, label, button, input, select, textarea {
             font-family: 'Pretendard', sans-serif;
         }
         
-        /* Streamlit 내부 아이콘 폰트 보호 (이 부분이 깨짐 방지 핵심) */
+        /* 아이콘 폰트 충돌 방지 */
         .material-symbols-rounded {
             font-family: 'Material Symbols Rounded' !important;
         }
 
-        /* 2. 메인 컨테이너 여백 */
+        /* 컨테이너 여백 */
         .block-container { padding-top: 2rem; }
 
-        /* 3. 카드 박스 스타일 (Shadow Box) */
+        /* 카드 박스 스타일 */
         div.css-1r6slb0, div.stDataFrame, div[data-testid="stMetric"] {
             background-color: white;
             border-radius: 12px;
@@ -47,14 +48,14 @@ st.markdown("""
             border: 1px solid #e2e8f0;
         }
 
-        /* 4. 메트릭 숫자 강조 */
+        /* 메트릭 숫자 강조 */
         div[data-testid="stMetricValue"] {
             font-size: 1.8rem !important;
             font-weight: 800 !important;
             color: #1e293b;
         }
 
-        /* 5. 커스텀 리스트 행 스타일 (촉진대상자 등) */
+        /* 커스텀 리스트 행 스타일 */
         .custom-row {
             background-color: white;
             border-bottom: 1px solid #f1f5f9;
@@ -80,18 +81,13 @@ st.markdown("""
         .row-item { flex: 1; text-align: center; font-size: 0.95rem; color: #334155; }
         .row-item-left { flex: 1; text-align: left; padding-left: 20px; font-size: 0.95rem; color: #334155; }
         
-        /* 6. 태그 스타일 */
-        .badge {
-            padding: 4px 8px;
-            border-radius: 6px;
-            font-size: 0.8rem;
-            font-weight: 600;
-        }
+        /* 태그 스타일 */
+        .badge { padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; }
         .badge-red { background-color: #fee2e2; color: #991b1b; }
         .badge-blue { background-color: #dbeafe; color: #1e40af; }
         .badge-gray { background-color: #f1f5f9; color: #475569; }
 
-        /* 7. 합계 박스 스타일 */
+        /* 합계 박스 스타일 */
         .total-box {
             background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
             border: 1px solid #e2e8f0;
@@ -131,6 +127,7 @@ if not all_sheets:
     st.error("데이터 로드 실패. 구글 시트가 엑셀(xlsx) 형식으로 게시되었는지 확인해주세요.")
     st.stop()
 
+# 시트 이름 매핑
 budget_sheet_name = next((s for s in all_sheets.keys() if '기준' in s or 'Budget' in s), None)
 expense_sheet_name = next((s for s in all_sheets.keys() if '지출' in s or 'Expense' in s), None)
 leave_sheet_name = next((s for s in all_sheets.keys() if '원천' in s or 'Leave' in s), None)
@@ -143,6 +140,21 @@ with st.sidebar:
     st.markdown("---")
     menu = st.radio("업무 모듈", ["💰 예산 관리", "🏖️ 연차 관리"])
     st.markdown("---")
+    
+    # [QR 코드 생성기]
+    with st.expander("📱 모바일 접속 QR"):
+        st.caption("아래 주소의 QR코드를 생성합니다.")
+        app_url = st.text_input("URL", value="https://smhot67-debug-my-budget-dashboard.streamlit.app/")
+        
+        if app_url:
+            qr = qrcode.QRCode(box_size=10, border=2)
+            qr.add_data(app_url)
+            qr.make(fit=True)
+            img = qr.make_image(fill_color="black", back_color="white")
+            
+            buffer = BytesIO()
+            img.save(buffer, format="PNG")
+            st.image(buffer, caption="스캔하여 접속하세요", use_container_width=True)
 
 # =============================================================================
 # [PART A] 예산 관리
@@ -170,7 +182,7 @@ if menu == "💰 예산 관리":
     if '금액' in df_expense.columns:
         df_expense['금액'] = pd.to_numeric(df_expense['금액'], errors='coerce').fillna(0)
     
-    # 0원 제거 및 문자열 변환
+    # 데이터 정제
     df_expense = df_expense[df_expense['금액'] != 0]
     if '대분류' not in df_expense.columns: df_expense['대분류'] = '-'
     if '소분류' not in df_expense.columns: df_expense['소분류'] = '-'
@@ -197,7 +209,7 @@ if menu == "💰 예산 관리":
             sub_cats += sorted(df_expense['소분류'].unique())
         cat_sub = st.selectbox("소분류", sub_cats)
 
-    # 필터링
+    # 필터링 로직
     df_filtered = df_expense.copy()
     period_label = "전체 기간"
     if period_option != "전체 누적":
@@ -248,7 +260,6 @@ if menu == "💰 예산 관리":
 
     with col_list:
         st.subheader("🏢 팀별 집행 현황")
-        # 스크롤 없이 전체 표시 (container 높이 제한 제거)
         if not df_dash.empty:
             for i, row in df_dash.iterrows():
                 pct = min(row['집행률'], 100)
@@ -274,7 +285,6 @@ if menu == "💰 예산 관리":
 
     st.subheader("📝 상세 지출 내역")
     
-    # 합계 박스
     st.markdown(f"""
         <div class="total-box">
             <div style="text-align:left; width:100%; display:flex; justify-content:space-between; align-items:center;">
@@ -287,7 +297,6 @@ if menu == "💰 예산 관리":
     if not df_filtered.empty:
         df_show = df_filtered.sort_values('날짜', ascending=False).reset_index(drop=True)
         
-        # 헤더
         st.markdown("""
             <div class="custom-header">
                 <div class="row-item">날짜</div>
@@ -299,7 +308,6 @@ if menu == "💰 예산 관리":
             </div>
         """, unsafe_allow_html=True)
         
-        # 데이터 행 반복 출력 (스크롤 가능)
         with st.container(height=400):
             for _, row in df_show.iterrows():
                 date_str = row['날짜'].strftime('%Y-%m-%d')
@@ -328,7 +336,6 @@ elif menu == "🏖️ 연차 관리":
     df_leave = all_sheets[leave_sheet_name].fillna(0)
     df_leave['소속'] = df_leave['소속'].apply(clean_dept_name)
 
-    # 숫자형 변환
     for col in ['합계', '사용일수', '잔여일수', '부채예산', '부채잔액']:
         if col in df_leave.columns:
             df_leave[col] = pd.to_numeric(df_leave[col], errors='coerce').fillna(0)
@@ -343,7 +350,7 @@ elif menu == "🏖️ 연차 관리":
     if leave_dept_option != "전체":
         df_leave = df_leave[df_leave['소속'] == leave_dept_option]
 
-    # 촉진 대상자
+    # 촉진 대상자 (잔여일수 기준)
     df_risk = df_leave[df_leave['잔여일수'] >= risk_criteria].sort_values('잔여일수', ascending=False)
 
     # KPI
@@ -381,7 +388,6 @@ elif menu == "🏖️ 연차 관리":
             r_rem = df_risk['잔여일수'].sum()
             r_rate = (r_use / r_tot * 100) if r_tot > 0 else 0
             
-            # 요약 박스
             st.markdown(f"""
                 <div class="total-box">
                     <div><span class="total-label">대상자 총 연차</span><span class="total-value">{r_tot:,.1f}</span></div>
@@ -391,7 +397,6 @@ elif menu == "🏖️ 연차 관리":
                 </div>
             """, unsafe_allow_html=True)
 
-            # 리스트 헤더
             st.markdown("""
                 <div class="custom-header">
                     <div class="row-item">성명/직급</div>
@@ -401,7 +406,6 @@ elif menu == "🏖️ 연차 관리":
                 </div>
             """, unsafe_allow_html=True)
 
-            # 리스트 바디
             with st.container(height=320):
                 for _, row in df_risk.iterrows():
                     st.markdown(f"""
@@ -412,18 +416,15 @@ elif menu == "🏖️ 연차 관리":
                             <div class="row-item" style="font-size:0.8rem; color:#94a3b8;">잔여 {risk_criteria}일 이상</div>
                         </div>
                     """, unsafe_allow_html=True)
-            
-            # [삭제] 메일 발송 버튼 제거됨
         else:
             st.success("해당 조건의 촉진 대상자가 없습니다.")
 
     st.divider()
     st.subheader("👥 전체 임직원 명부")
     
-    # [수정] 전체 임직원 명부도 커스텀 리스트 UI 적용 + 부채 컬럼 제거
+    # 전체 명부 (정렬)
     df_show = df_leave.sort_values('소속').copy()
     
-    # Header (부채 제거)
     st.markdown("""
         <div class="custom-header">
             <div class="row-item">소속</div>
@@ -434,7 +435,6 @@ elif menu == "🏖️ 연차 관리":
         </div>
     """, unsafe_allow_html=True)
     
-    # Rows (부채 제거)
     with st.container(height=500):
         for _, row in df_show.iterrows():
             st.markdown(f"""
