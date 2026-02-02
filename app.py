@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# [CSS] 프리미엄 UI 디자인
+# [CSS] 프리미엄 UI & 모바일 반응형 디자인
 st.markdown("""
     <style>
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -31,11 +31,13 @@ st.markdown("""
             font-family: 'Pretendard', sans-serif;
         }
 
-        /* 아이콘 폰트 보호 */
         .material-symbols-rounded { font-family: 'Material Symbols Rounded' !important; }
 
-        /* 컨테이너 여백 */
+        /* 컨테이너 여백 (모바일 대응) */
         .block-container { padding-top: 1.5rem; padding-bottom: 5rem; }
+        @media (max-width: 640px) {
+            .block-container { padding-left: 0.5rem; padding-right: 0.5rem; }
+        }
 
         /* 카드 박스 스타일 */
         div.css-1r6slb0, div.stDataFrame, div[data-testid="stMetric"] {
@@ -46,11 +48,14 @@ st.markdown("""
             border: none;
         }
 
-        /* 메트릭 숫자 */
+        /* 메트릭 숫자 (모바일 대응) */
         div[data-testid="stMetricValue"] {
             font-size: 2rem !important;
             font-weight: 700 !important;
             color: #2B3674;
+        }
+        @media (max-width: 640px) {
+            div[data-testid="stMetricValue"] { font-size: 1.5rem !important; }
         }
         div[data-testid="stMetricLabel"] {
             font-size: 0.95rem !important;
@@ -58,7 +63,7 @@ st.markdown("""
             font-weight: 500;
         }
 
-        /* [NEW] 모던 헤더 디자인 */
+        /* 모던 헤더 디자인 */
         .modern-header {
             background: white;
             padding: 25px 30px;
@@ -84,13 +89,14 @@ st.markdown("""
             font-weight: 500;
         }
 
-        /* 커스텀 KPI 카드 (Shiftee Style) - 색상 강조 */
+        /* KPI 카드 (Shiftee Style) */
         .kpi-card {
             background-color: white;
             border-radius: 16px;
             padding: 24px;
             box-shadow: 0px 4px 12px rgba(112, 144, 176, 0.08);
             border: 1px solid #E2E8F0;
+            border-top: 5px solid #3B82F6;
             height: 100%;
             display: flex;
             flex-direction: column;
@@ -99,8 +105,12 @@ st.markdown("""
         .kpi-title { color: #64748B; font-size: 0.9rem; font-weight: 600; margin-bottom: 8px; }
         .kpi-value { color: #1E293B; font-size: 2.2rem; font-weight: 800; letter-spacing: -1px; }
         .kpi-sub { color: #94A3B8; font-size: 0.85rem; margin-top: 4px; font-weight: 500; }
+        @media (max-width: 640px) {
+            .kpi-card { padding: 15px; }
+            .kpi-value { font-size: 1.6rem; }
+        }
 
-        /* 커스텀 리스트 행 */
+        /* 커스텀 리스트 행 (모바일 최적화) */
         .custom-row {
             background-color: white;
             border-bottom: 1px solid #F4F7FE;
@@ -109,6 +119,8 @@ st.markdown("""
             align-items: center;
             transition: all 0.2s ease;
             border-radius: 12px;
+            /* 모바일에서 텍스트 줄바꿈 방지 */
+            white-space: nowrap; 
         }
         .custom-row:hover { background-color: #F4F7FE; transform: translateX(5px); }
         
@@ -124,10 +136,24 @@ st.markdown("""
             margin-bottom: 10px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+            white-space: nowrap;
         }
         
-        .row-item { flex: 1; text-align: center; font-size: 0.95rem; color: #2B3674; font-weight: 500; }
-        .row-item-left { flex: 1; text-align: left; padding-left: 20px; font-size: 0.95rem; color: #2B3674; font-weight: 500; }
+        .row-item { 
+            flex: 1; text-align: center; font-size: 0.95rem; color: #2B3674; font-weight: 500;
+            overflow: hidden; text-overflow: ellipsis; /* 말줄임표 */
+        }
+        .row-item-left { 
+            flex: 1; text-align: left; padding-left: 20px; font-size: 0.95rem; color: #2B3674; font-weight: 500;
+            overflow: hidden; text-overflow: ellipsis;
+        }
+        
+        /* 모바일에서는 폰트 사이즈 축소 및 패딩 조정 */
+        @media (max-width: 640px) {
+            .custom-row, .custom-header { padding: 10px 5px; }
+            .row-item, .row-item-left { font-size: 0.8rem; }
+            .row-item-left { padding-left: 5px; }
+        }
         
         /* 태그 */
         .badge { padding: 6px 12px; border-radius: 30px; font-size: 0.75rem; font-weight: 700; }
@@ -150,14 +176,13 @@ st.markdown("""
         .total-label { font-size: 0.9rem; color: #E9E3FF; margin-bottom: 5px; display: block; text-align: center; font-weight: 500;}
         .total-value { font-size: 1.5rem; font-weight: 700; color: white; display: block; text-align: center;}
         
-        /* 사이드바 */
         [data-testid="stSidebar"] {
             background-color: white;
             box-shadow: 4px 0px 20px rgba(112, 144, 176, 0.05);
             border-right: none;
         }
 
-        /* 탭 버튼 스타일 커스텀 */
+        /* 탭 버튼 스타일 */
         div.row-widget.stRadio > div {
             background-color: white;
             padding: 8px;
@@ -258,6 +283,7 @@ with st.sidebar:
     st.caption("※ 시트 수정 후 1~5분 뒤 반영됩니다.")
     st.markdown("---")
     
+    # [QR 코드]
     try:
         import qrcode
         has_qrcode = True
@@ -266,7 +292,8 @@ with st.sidebar:
 
     with st.expander("📱 모바일 접속 QR"):
         if has_qrcode:
-            st.caption("Scan to access")
+            st.caption("아래 코드를 스캔하면 모바일 화면으로 접속됩니다.")
+            # [기본값 설정] 동권님의 실제 주소
             default_url = "https://my-budget-dashboard-ebrzrzbmslu8xh6dphqtin.streamlit.app/"
             app_url = st.text_input("URL", value=default_url)
             if app_url:
@@ -394,7 +421,6 @@ if menu == "💰 예산 관리":
     if cat_main != "전체": df_detail_filtered = df_detail_filtered[df_detail_filtered['대분류'] == cat_main]
     if cat_sub != "전체": df_detail_filtered = df_detail_filtered[df_detail_filtered['소분류'] == cat_sub]
 
-    # [UI] 모던 헤더 적용
     st.markdown(f"""
         <div class="modern-header">
             <h1>💰 예산 관리 대시보드</h1>
@@ -631,7 +657,6 @@ elif menu == "⏰ 연장근무 관리":
     if ot_team_opt != "전체 팀":
         df_filtered = df_filtered[df_filtered['팀명'] == ot_team_opt]
 
-    # [수정] 모던 헤더 적용
     st.markdown(f"""
         <div class="modern-header">
             <h1>⏰ 연장근무 관리</h1>
@@ -639,7 +664,6 @@ elif menu == "⏰ 연장근무 관리":
         </div>
     """, unsafe_allow_html=True)
 
-    # [수정] 고급 탭 UI (Segmented Control)
     view_mode = st.radio("VIEW MODE", ["📊 통합 현황", "📈 주간 추이"], horizontal=True, label_visibility="collapsed")
     st.markdown("---")
 
@@ -659,7 +683,6 @@ elif menu == "⏰ 연장근무 관리":
     if view_mode == "📊 통합 현황":
         st.subheader("통합 연장근무 현황")
         
-        # [수정] KPI 카드 컬러 복구 (Shiftee Style)
         k1, k2, k3, k4 = st.columns(4)
         with k1:
             st.markdown(f"""<div class="kpi-card" style="border-top-color: #4F46E5;"><div class="kpi-title">총 근무시간</div><div class="kpi-value">{total_sum:,.1f}h</div><div class="kpi-sub">Total Overtime</div></div>""", unsafe_allow_html=True)
@@ -682,7 +705,7 @@ elif menu == "⏰ 연장근무 관리":
             
             df_long = df_agg.melt(id_vars='팀명', var_name='유형', value_name='시간')
             
-            # [수정] 가로 누적 막대 & 색상 통일 (파랑/빨강/하늘)
+            # [수정] 가로 누적 막대 & 색상 통일
             color_map = {
                 '연장시간': '#3B82F6', '연장근로': '#3B82F6', # Blue
                 '야근시간': '#EF4444', # Red
