@@ -48,7 +48,7 @@ st.markdown("""
 SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6hnNtH_1tBFJoA25lXzFPjKUGpBfu0H313_QVFDPdHOpWDDQSJQvIlOQpUoczNO7z7jyWbE171ApD/pub?output=xlsx"
 
 # -----------------------------------------------------------------------------
-# 2. 데이터 로드 엔진
+# 2. 데이터 로드 엔진 (강화됨)
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=60)
 def load_all_data():
@@ -395,14 +395,18 @@ elif menu == "⏰ 연장근무 관리":
     # 데이터 로드 및 전처리
     df_ot = all_sheets[overtime_sheet_name].fillna(0)
     
-    # 컬럼 표준화 (공백 제거)
+    # 컬럼 표준화
     df_ot.columns = [c.replace(' ','').strip() for c in df_ot.columns]
     
-    # 월 컬럼 타입 통일 (문자열)
-    if '월' in df_ot.columns:
+    # 월 컬럼 찾기 (한글 '월' 또는 'Month')
+    month_col = next((c for c in df_ot.columns if c == '월' or c == 'Month'), None)
+    if month_col:
+        df_ot.rename(columns={month_col: '월'}, inplace=True)
         df_ot['월'] = df_ot['월'].astype(str)
+    else:
+        df_ot['월'] = 'Unknown'
 
-    # 숫자형 변환 (safe_numeric 적용)
+    # 숫자형 변환
     num_cols = ['연장시간', '연장근로', '야근시간', '휴일시간']
     valid_num_cols = []
     for c in df_ot.columns:
@@ -421,7 +425,14 @@ elif menu == "⏰ 연장근무 관리":
         st.subheader("통합 연장근무 현황")
         
         # 필터 (월 선택)
-        month_list = ["전체 누적"] + sorted([m for m in df_ot['월'].unique() if m != '0'], key=lambda x: int(re.sub(r'\D', '', x)) if re.sub(r'\D', '', x) else 0)
+        unique_months = [m for m in df_ot['월'].unique() if m != '0' and m != 'Unknown']
+        # 월 정렬 시도 (숫자 추출)
+        try:
+            sorted_months = sorted(unique_months, key=lambda x: int(re.sub(r'\D', '', str(x))) if re.sub(r'\D', '', str(x)) else 0)
+        except:
+            sorted_months = sorted(unique_months)
+
+        month_list = ["전체 누적"] + sorted_months
         
         c_filter, c_ratio = st.columns([2, 4])
         with c_filter:
@@ -437,12 +448,18 @@ elif menu == "⏰ 연장근무 관리":
         ext_sum = df_filtered[[c for c in df_ot.columns if '연장' in c]].sum().sum()
         night_sum = df_filtered[[c for c in df_ot.columns if '야근' in c]].sum().sum()
         hol_sum = df_filtered[[c for c in df_ot.columns if '휴일' in c]].sum().sum()
+        
+        # 비율 계산 (delta용)
+        ext_ratio = (ext_sum / total_sum * 100) if total_sum > 0 else 0
+        night_ratio = (night_sum / total_sum * 100) if total_sum > 0 else 0
+        hol_ratio = (hol_sum / total_sum * 100) if total_sum > 0 else 0
 
         k1, k2, k3, k4 = st.columns(4)
         k1.metric("총 근무시간", f"{total_sum:,.1f}h")
-        k2.metric("연장 근로", f"{ext_sum:,.1f}h", color="#4f46e5") # Indigo
-        k3.metric("야간 근로", f"{night_sum:,.1f}h", color="#e11d48") # Rose
-        k4.metric("휴일 근로", f"{hol_sum:,.1f}h", color="#0ea5e9") # Sky
+        # [수정] color 인자 제거 -> delta로 비율 표시 (또는 색상 제거)
+        k2.metric("연장 근로", f"{ext_sum:,.1f}h", f"{ext_ratio:.1f}%", delta_color="off")
+        k3.metric("야간 근로", f"{night_sum:,.1f}h", f"{night_ratio:.1f}%", delta_color="off")
+        k4.metric("휴일 근로", f"{hol_sum:,.1f}h", f"{hol_ratio:.1f}%", delta_color="off")
 
         st.markdown("---")
         
@@ -450,66 +467,77 @@ elif menu == "⏰ 연장근무 관리":
         c1, c2 = st.columns([1, 1])
         with c1:
             st.markdown("##### 🏢 팀별 근무 유형 비교")
-            df_chart = df_filtered.groupby('팀명')[valid_num_cols].sum().reset_index()
-            df_long = df_chart.melt(id_vars='팀명', var_name='유형', value_name='시간')
-            
-            fig = px.bar(df_long, x='팀명', y='시간', color='유형',
-                         color_discrete_map={'연장시간':'#4f46e5', '연장근로':'#4f46e5', '야근시간':'#e11d48', '휴일시간':'#0ea5e9'},
-                         text_auto='.0f')
-            fig.update_layout(xaxis_title=None, yaxis_title=None, height=350)
-            st.plotly_chart(fig, use_container_width=True)
+            if not df_filtered.empty:
+                df_chart = df_filtered.groupby('팀명')[valid_num_cols].sum().reset_index()
+                df_long = df_chart.melt(id_vars='팀명', var_name='유형', value_name='시간')
+                
+                fig = px.bar(df_long, x='팀명', y='시간', color='유형',
+                             color_discrete_map={'연장시간':'#4f46e5', '연장근로':'#4f46e5', '야근시간':'#e11d48', '휴일시간':'#0ea5e9'},
+                             text_auto='.0f')
+                fig.update_layout(xaxis_title=None, yaxis_title=None, height=350)
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("데이터 없음")
             
         with c2:
             st.markdown("##### 📅 월별 통합 추이")
-            # 월별 집계
-            if '월' in df_ot.columns:
+            if '월' in df_ot.columns and not df_ot.empty:
                 trend_df = df_ot.groupby('월')['총근무'].sum().reset_index()
-                # 월 정렬 (숫자 기준)
-                trend_df['sort_key'] = trend_df['월'].apply(lambda x: int(re.sub(r'\D', '', str(x))) if re.sub(r'\D', '', str(x)) else 0)
-                trend_df = trend_df.sort_values('sort_key')
+                try:
+                    trend_df['sort_key'] = trend_df['월'].apply(lambda x: int(re.sub(r'\D', '', str(x))) if re.sub(r'\D', '', str(x)) else 0)
+                    trend_df = trend_df.sort_values('sort_key')
+                except:
+                    pass
                 
                 fig2 = px.area(trend_df, x='월', y='총근무', markers=True)
                 fig2.update_traces(line_color='#6366f1', fill_color='rgba(99, 102, 241, 0.2)')
                 fig2.update_layout(xaxis_title=None, yaxis_title=None, height=350)
                 st.plotly_chart(fig2, use_container_width=True)
+            else:
+                st.info("데이터 없음")
 
     # 2. 주간 추이 (Dashboard 2)
     with tab_weekly:
         st.subheader("주간 진행 현황 (Weekly)")
         
-        # 월 선택 (주간 보기는 월 선택 필수)
-        w_months = sorted([m for m in df_ot['월'].unique() if m != '0'], key=lambda x: int(re.sub(r'\D', '', x)) if re.sub(r'\D', '', x) else 0)
-        target_month = st.selectbox("월 선택", w_months, key="weekly_month")
-        
-        df_weekly = df_ot[df_ot['월'] == target_month]
-        
-        if '주차' in df_weekly.columns:
-            c_w1, c_w2 = st.columns([1, 1])
+        if sorted_months:
+            target_month = st.selectbox("월 선택", sorted_months, key="weekly_month")
+            df_weekly = df_ot[df_ot['월'] == target_month]
             
-            with c_w1:
-                st.markdown("##### 📊 주차별 팀 합계")
-                week_chart = df_weekly.groupby(['주차', '팀명'])['총근무'].sum().reset_index()
-                fig3 = px.bar(week_chart, x='주차', y='총근무', color='팀명', barmode='group')
-                fig3.update_layout(height=400)
-                st.plotly_chart(fig3, use_container_width=True)
+            if '주차' in df_weekly.columns:
+                c_w1, c_w2 = st.columns([1, 1])
                 
-            with c_w2:
-                st.markdown("##### 📉 팀별 누적 추이")
-                # 주차 정렬 후 누적 계산
-                week_chart['주차_num'] = week_chart['주차'].apply(lambda x: int(re.sub(r'\D', '', str(x))) if re.sub(r'\D', '', str(x)) else 0)
-                week_chart = week_chart.sort_values('주차_num')
-                week_chart['누적근무'] = week_chart.groupby('팀명')['총근무'].cumsum()
-                
-                fig4 = px.line(week_chart, x='주차', y='누적근무', color='팀명', markers=True)
-                fig4.update_layout(height=400)
-                st.plotly_chart(fig4, use_container_width=True)
+                with c_w1:
+                    st.markdown("##### 📊 주차별 팀 합계")
+                    week_chart = df_weekly.groupby(['주차', '팀명'])['총근무'].sum().reset_index()
+                    if not week_chart.empty:
+                        fig3 = px.bar(week_chart, x='주차', y='총근무', color='팀명', barmode='group')
+                        fig3.update_layout(height=400)
+                        st.plotly_chart(fig3, use_container_width=True)
+                    else:
+                        st.info("해당 월의 데이터가 없습니다.")
+                    
+                with c_w2:
+                    st.markdown("##### 📉 팀별 누적 추이")
+                    if not week_chart.empty:
+                        try:
+                            week_chart['주차_num'] = week_chart['주차'].apply(lambda x: int(re.sub(r'\D', '', str(x))) if re.sub(r'\D', '', str(x)) else 0)
+                            week_chart = week_chart.sort_values('주차_num')
+                        except:
+                            pass
+                        week_chart['누적근무'] = week_chart.groupby('팀명')['총근무'].cumsum()
+                        
+                        fig4 = px.line(week_chart, x='주차', y='누적근무', color='팀명', markers=True)
+                        fig4.update_layout(height=400)
+                        st.plotly_chart(fig4, use_container_width=True)
+            else:
+                st.warning("'주차' 컬럼이 데이터에 없습니다.")
         else:
-            st.warning("'주차' 컬럼이 데이터에 없습니다.")
+            st.info("데이터가 없습니다.")
 
     st.divider()
     st.subheader("🗓️ 상세 근무 내역")
     
-    # 상세 내역 리스트 UI
     st.markdown("""
         <div class="custom-header">
             <div class="row-item">월/주차</div>
@@ -522,25 +550,27 @@ elif menu == "⏰ 연장근무 관리":
         </div>
     """, unsafe_allow_html=True)
 
-    # 필터된 데이터 (월간/주간 통합)
-    # 현재 탭에 따라 보여줄 데이터 결정 or 항상 전체/월간 보여주기 (여기선 1번 탭 기준)
-    df_show_ot = df_filtered.sort_values(['월', '주차', '팀명']).reset_index(drop=True)
+    if not df_filtered.empty:
+        sort_cols = [c for c in ['월', '주차', '팀명'] if c in df_filtered.columns]
+        df_show_ot = df_filtered.sort_values(sort_cols).reset_index(drop=True)
 
-    with st.container(height=500):
-        for _, row in df_show_ot.iterrows():
-            ext = row.get('연장근로', row.get('연장시간', 0))
-            night = row.get('야근시간', 0)
-            hol = row.get('휴일시간', 0)
-            week_str = row.get('주차', '')
-            
-            st.markdown(f"""
-                <div class="custom-row">
-                    <div class="row-item" style="color:#64748b;">{row['월']} {week_str}</div>
-                    <div class="row-item"><strong>{row['팀명']}</strong></div>
-                    <div class="row-item">{row['이름']}</div>
-                    <div class="row-item" style="color:#4f46e5;">{ext:.1f}</div>
-                    <div class="row-item" style="color:#e11d48;">{night:.1f}</div>
-                    <div class="row-item" style="color:#0ea5e9;">{hol:.1f}</div>
-                    <div class="row-item" style="font-weight:bold; background-color:#f1f5f9; border-radius:4px;">{row['총근무']:.1f}h</div>
-                </div>
-            """, unsafe_allow_html=True)
+        with st.container(height=500):
+            for _, row in df_show_ot.iterrows():
+                ext = row.get('연장근로', row.get('연장시간', 0))
+                night = row.get('야근시간', 0)
+                hol = row.get('휴일시간', 0)
+                week_str = row.get('주차', '')
+                
+                st.markdown(f"""
+                    <div class="custom-row">
+                        <div class="row-item" style="color:#64748b;">{row['월']} {week_str}</div>
+                        <div class="row-item"><strong>{row['팀명']}</strong></div>
+                        <div class="row-item">{row['이름']}</div>
+                        <div class="row-item" style="color:#4f46e5;">{ext:.1f}</div>
+                        <div class="row-item" style="color:#e11d48;">{night:.1f}</div>
+                        <div class="row-item" style="color:#0ea5e9;">{hol:.1f}</div>
+                        <div class="row-item" style="font-weight:bold; background-color:#f1f5f9; border-radius:4px;">{row['총근무']:.1f}h</div>
+                    </div>
+                """, unsafe_allow_html=True)
+    else:
+        st.info("내역이 없습니다.")
