@@ -45,6 +45,17 @@ st.markdown("""
         .total-value { font-size: 1.5rem; font-weight: 700; color: white; display: block; text-align: center;}
         
         [data-testid="stSidebar"] { background-color: white; border-right: none; box-shadow: 4px 0px 20px rgba(112, 144, 176, 0.05); }
+
+        /* 모드 선택 라디오 버튼 스타일링 */
+        div[role="radiogroup"] {
+            background-color: white;
+            padding: 5px;
+            border-radius: 12px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -52,7 +63,7 @@ st.markdown("""
 SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6hnNtH_1tBFJoA25lXzFPjKUGpBfu0H313_QVFDPdHOpWDDQSJQvIlOQpUoczNO7z7jyWbE171ApD/pub?output=xlsx"
 
 # -----------------------------------------------------------------------------
-# 2. 데이터 로드 엔진 (강화됨)
+# 2. 데이터 로드 엔진
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=60)
 def load_all_data():
@@ -82,7 +93,7 @@ if not all_sheets:
         st.rerun()
     st.stop()
 
-# 시트 이름 매핑 (안전하게 찾기)
+# 시트 이름 매핑
 sheet_keys = list(all_sheets.keys())
 budget_sheet_name = next((s for s in sheet_keys if '기준' in s or 'Budget' in s), None)
 expense_sheet_name = next((s for s in sheet_keys if '지출' in s or 'Expense' in s), None)
@@ -98,14 +109,12 @@ with st.sidebar:
     menu = st.radio("MAIN MENU", ["💰 예산 관리", "🏖️ 연차 관리", "⏰ 연장근무 관리"])
     st.markdown("---")
     
-    # [데이터 강제 갱신 버튼]
     if st.button("🔄 데이터 새로고침", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
     st.caption("※ 시트 수정 후 약 1~5분 뒤 반영됩니다.")
     st.markdown("---")
     
-    # [QR 코드]
     try:
         import qrcode
         has_qrcode = True
@@ -137,29 +146,22 @@ if menu == "💰 예산 관리":
         st.error("예산 데이터 시트가 없습니다.")
         st.stop()
 
-    # 1. 예산(기준정보) 데이터 처리
     df_budget = all_sheets[budget_sheet_name].fillna(0)
-    
-    # 컬럼명 공백 제거 (안전장치)
+    # 컬럼명 공백 제거
     df_budget.columns = [str(c).strip() for c in df_budget.columns]
     
-    # 숫자형 변환 (팀명 제외)
     for col in df_budget.columns:
         if col != '팀명': df_budget[col] = safe_numeric(df_budget[col])
     
-    # 기본 예산 컬럼 찾기
     base_col = next((c for c in df_budget.columns if '배정' in c or '기본' in c), None)
-    # 추가 예산 컬럼 찾기 ('추가'가 포함된 모든 컬럼)
     add_cols = [c for c in df_budget.columns if '추가' in c]
     
     if base_col:
         df_budget['기본예산'] = df_budget[base_col]
     else:
-        # 없으면 숫자형 첫 번째 컬럼 사용
         num_cols = df_budget.select_dtypes(include=['number']).columns
         df_budget['기본예산'] = df_budget[num_cols[0]] if len(num_cols) > 0 else 0
 
-    # 추가 예산 합계
     if add_cols:
         df_budget['추가예산합계'] = df_budget[add_cols].sum(axis=1)
     else:
@@ -168,7 +170,6 @@ if menu == "💰 예산 관리":
     df_budget['총예산'] = df_budget['기본예산'] + df_budget['추가예산합계']
     df_base = df_budget[['팀명', '기본예산', '추가예산합계', '총예산']]
 
-    # 2. 지출(실적) 데이터 처리
     df_expense = all_sheets[expense_sheet_name].fillna(0)
     df_expense.columns = [str(c).strip() for c in df_expense.columns]
     
@@ -189,7 +190,6 @@ if menu == "💰 예산 관리":
     df_expense['대분류'] = df_expense['대분류'].astype(str)
     df_expense['소분류'] = df_expense['소분류'].astype(str)
 
-    # 3. 필터 UI
     with st.sidebar:
         st.subheader("Filter")
         month_list = sorted([m for m in df_expense['월'].unique() if m != '날짜없음'], reverse=True)
@@ -207,7 +207,6 @@ if menu == "💰 예산 관리":
             sub_cats += sorted(df_expense['소분류'].unique())
         cat_sub = st.selectbox("소분류", sub_cats)
 
-    # 4. 데이터 병합
     df_filtered = df_expense.copy()
     period_label = "전체 기간"
     if period_option != "전체 누적":
@@ -229,7 +228,6 @@ if menu == "💰 예산 관리":
     if cat_main == "전체" and cat_sub == "전체":
         df_dash = df_dash[~((df_dash['총예산'] == 0) & (df_dash['사용액'] == 0))]
 
-    # 5. UI 출력
     st.title("💰 예산 관리 대시보드")
     st.caption(f"Status: {team_option} / {period_label}")
     
@@ -330,7 +328,7 @@ if menu == "💰 예산 관리":
 # =============================================================================
 elif menu == "🏖️ 연차 관리":
     if not leave_sheet_name:
-        st.error("연차 데이터 시트가 없습니다.")
+        st.error("연차 데이터 시트를 찾을 수 없습니다.")
         st.stop()
 
     df_leave = all_sheets[leave_sheet_name].fillna(0)
@@ -463,6 +461,7 @@ elif menu == "⏰ 연장근무 관리":
     
     df_ot['총근무'] = df_ot[valid_num_cols].sum(axis=1)
 
+    # [수정] 사이드바 필터 이동
     with st.sidebar:
         st.subheader("연장근무 필터")
         unique_months = [m for m in df_ot['월'].unique() if m != '0' and m != 'Unknown']
@@ -479,16 +478,19 @@ elif menu == "⏰ 연장근무 관리":
         
         target_ratio = st.slider("전년 대비 목표 (%)", 80, 120, 90)
 
+    # 데이터 필터링
     df_filtered = df_ot.copy()
     if ot_month_opt != "전체 누적":
         df_filtered = df_filtered[df_filtered['월'] == ot_month_opt]
     if ot_team_opt != "전체":
         df_filtered = df_filtered[df_filtered['팀명'] == ot_team_opt]
 
-    tab_dashboard, tab_weekly = st.tabs(["📊 통합 현황 (Monthly)", "📈 주간 추이 (Weekly)"])
+    # [수정] 모드 선택 (Radio Button)
+    view_mode = st.radio("보기 모드", ["📊 통합 현황 (Monthly)", "📈 주간 추이 (Weekly)"], horizontal=True, label_visibility="collapsed")
+    st.markdown("---")
 
     # 1. 통합 현황
-    with tab_dashboard:
+    if view_mode == "📊 통합 현황 (Monthly)":
         st.subheader("통합 연장근무 현황")
         
         total_sum = df_filtered['총근무'].sum()
@@ -513,21 +515,37 @@ elif menu == "⏰ 연장근무 관리":
         c1, c2 = st.columns([1, 1])
         with c1:
             st.markdown("##### 🏢 팀별 근무 유형 비교")
-            if not df_filtered.empty:
-                df_chart = df_filtered.groupby('팀명')[valid_num_cols].sum().reset_index()
-                df_long = df_chart.melt(id_vars='팀명', var_name='유형', value_name='시간')
-                
-                fig = px.bar(df_long, x='팀명', y='시간', color='팀명',
-                             color_discrete_sequence=px.colors.qualitative.Prism,
-                             text_auto='.0f')
-                
-                fig.update_traces(textposition='outside', cliponaxis=False, textfont_size=12)
-                fig.update_layout(xaxis_title=None, yaxis_title=None, height=350, 
-                                  paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                                  font=dict(size=14))
-                st.plotly_chart(fig, use_container_width=True)
+            
+            # [수정] 모든 팀 표시를 위한 재색인 (Reindexing)
+            if ot_team_opt == "전체":
+                all_teams = sorted(df_ot['팀명'].unique())
             else:
-                st.info("데이터 없음")
+                all_teams = [ot_team_opt]
+                
+            # Aggregation
+            df_agg = df_filtered.groupby('팀명')[valid_num_cols].sum().reset_index()
+            # Reindex to ensure all teams exist (fill 0)
+            df_agg = df_agg.set_index('팀명').reindex(all_teams).fillna(0).reset_index()
+            
+            df_long = df_agg.melt(id_vars='팀명', var_name='유형', value_name='시간')
+            
+            # [수정] 가로 막대 & 색상 구분
+            color_map = {
+                '연장시간': '#3B82F6', '연장근로': '#3B82F6', # Blue
+                '야근시간': '#8B5CF6', # Purple
+                '휴일시간': '#F59E0B'  # Orange
+            }
+            
+            fig = px.bar(df_long, x='시간', y='팀명', color='유형',
+                         orientation='h', # 가로형
+                         color_discrete_map=color_map,
+                         text_auto='.0f')
+            
+            fig.update_traces(textposition='outside', cliponaxis=False, textfont_size=12)
+            fig.update_layout(xaxis_title=None, yaxis_title=None, height=400, 
+                              paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                              font=dict(size=14))
+            st.plotly_chart(fig, use_container_width=True)
             
         with c2:
             st.markdown("##### 📅 월별 통합 추이")
@@ -541,16 +559,17 @@ elif menu == "⏰ 연장근무 관리":
                 
                 fig2 = px.area(trend_df, x='월', y='총근무', markers=True)
                 fig2.update_traces(line_color='#4318FF', fillcolor='rgba(67, 24, 255, 0.1)')
-                fig2.update_layout(xaxis_title=None, yaxis_title=None, height=350, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                fig2.update_layout(xaxis_title=None, yaxis_title=None, height=400, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                 st.plotly_chart(fig2, use_container_width=True)
             else:
                 st.info("데이터 없음")
 
     # 2. 주간 추이
-    with tab_weekly:
+    elif view_mode == "📈 주간 추이 (Weekly)":
         st.subheader("주간 진행 현황 (Weekly)")
         
         if sorted_months:
+            # 주간 추이용 월 선택
             target_month = st.selectbox("월 선택 (주간용)", sorted_months, key="weekly_month")
             df_weekly = df_ot[df_ot['월'] == target_month]
             
@@ -593,9 +612,9 @@ elif menu == "⏰ 연장근무 관리":
             <div class="row-item">월/주차</div>
             <div class="row-item">팀명</div>
             <div class="row-item">이름</div>
-            <div class="row-item" style="color:#4318FF;">연장</div>
-            <div class="row-item" style="color:#FF5630;">야근</div>
-            <div class="row-item" style="color:#33C5FF;">휴일</div>
+            <div class="row-item" style="color:#3B82F6;">연장</div>
+            <div class="row-item" style="color:#8B5CF6;">야근</div>
+            <div class="row-item" style="color:#F59E0B;">휴일</div>
             <div class="row-item" style="font-weight:bold;">합계</div>
         </div>
     """, unsafe_allow_html=True)
@@ -616,9 +635,9 @@ elif menu == "⏰ 연장근무 관리":
                         <div class="row-item" style="color:#A3AED0;">{row['월']} {week_str}</div>
                         <div class="row-item"><strong>{row['팀명']}</strong></div>
                         <div class="row-item">{row['이름']}</div>
-                        <div class="row-item" style="color:#4318FF;">{ext:.1f}</div>
-                        <div class="row-item" style="color:#FF5630;">{night:.1f}</div>
-                        <div class="row-item" style="color:#33C5FF;">{hol:.1f}</div>
+                        <div class="row-item" style="color:#3B82F6;">{ext:.1f}</div>
+                        <div class="row-item" style="color:#8B5CF6;">{night:.1f}</div>
+                        <div class="row-item" style="color:#F59E0B;">{hol:.1f}</div>
                         <div class="row-item" style="font-weight:bold; background-color:#EFF4FB; border-radius:4px; color:#2B3674;">{row['총근무']:.1f}h</div>
                     </div>
                 """, unsafe_allow_html=True)
