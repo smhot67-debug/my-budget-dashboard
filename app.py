@@ -7,7 +7,7 @@ import qrcode
 from io import BytesIO
 
 # -----------------------------------------------------------------------------
-# 1. 시스템 설정 및 디자인 (Learn.io 스타일 적용)
+# 1. 시스템 설정 및 디자인
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="통합 관리 시스템",
@@ -16,109 +16,31 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# [CSS] Soft UI & Glassmorphism 디자인
+# [CSS] 프리미엄 UI 디자인
 st.markdown("""
     <style>
-        /* 1. 폰트 설정 (Pretendard) */
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        .stApp { font-family: 'Pretendard', sans-serif; background-color: #f8f9fa; }
+        h1, h2, h3, h4, h5, h6, p, div, span, label, button, input, select, textarea { font-family: 'Pretendard', sans-serif; }
+        .material-symbols-rounded { font-family: 'Material Symbols Rounded' !important; }
+        .block-container { padding-top: 2rem; }
         
-        .stApp {
-            font-family: 'Pretendard', sans-serif;
-            background-color: #F4F7FE; /* Learn.io 스타일 배경색 */
-        }
+        div.css-1r6slb0, div.stDataFrame, div[data-testid="stMetric"] { background-color: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0; }
+        div[data-testid="stMetricValue"] { font-size: 1.8rem !important; font-weight: 800 !important; color: #1e293b; }
         
-        h1, h2, h3, h4, h5, h6, p, div, span, label, button, input, select, textarea {
-            font-family: 'Pretendard', sans-serif;
-        }
-
-        /* 2. 아이콘 폰트 보호 */
-        .material-symbols-rounded {
-            font-family: 'Material Symbols Rounded' !important;
-        }
-
-        /* 3. 컨테이너 여백 */
-        .block-container { padding-top: 2rem; padding-bottom: 5rem; }
-
-        /* 4. 카드 박스 스타일 (Soft UI) - 둥근 모서리 강화 */
-        div.css-1r6slb0, div.stDataFrame, div[data-testid="stMetric"] {
-            background-color: white;
-            border-radius: 24px; /* 더 둥글게 */
-            padding: 24px;
-            box-shadow: 0px 4px 20px rgba(112, 144, 176, 0.08); /* 부드러운 그림자 */
-            border: none; /* 테두리 제거 */
-        }
-
-        /* 5. 메트릭 숫자 강조 */
-        div[data-testid="stMetricValue"] {
-            font-size: 2rem !important;
-            font-weight: 700 !important;
-            color: #2B3674; /* 진한 네이비 */
-        }
-        div[data-testid="stMetricLabel"] {
-            font-size: 0.9rem !important;
-            color: #A3AED0; /* 연한 회색 */
-            font-weight: 500;
-        }
-
-        /* 6. 커스텀 리스트 스타일 */
-        .custom-row {
-            background-color: white;
-            border-bottom: 1px solid #F4F7FE;
-            padding: 16px 10px;
-            display: flex;
-            align-items: center;
-            transition: all 0.2s ease;
-            border-radius: 12px;
-        }
-        .custom-row:hover { 
-            background-color: #F4F7FE; 
-            transform: translateX(5px);
-        }
+        .custom-row { background-color: white; border-bottom: 1px solid #f1f5f9; padding: 12px 0; display: flex; align-items: center; transition: background-color 0.2s; }
+        .custom-row:hover { background-color: #f8fafc; }
+        .custom-header { background-color: #f8fafc; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 10px 0; font-weight: 700; color: #64748b; font-size: 0.9rem; display: flex; align-items: center; }
+        .row-item { flex: 1; text-align: center; font-size: 0.95rem; color: #334155; }
+        .row-item-left { flex: 1; text-align: left; padding-left: 20px; font-size: 0.95rem; color: #334155; }
         
-        .custom-header {
-            background-color: #F4F7FE;
-            border-radius: 12px;
-            padding: 12px 10px;
-            font-weight: 600;
-            color: #A3AED0;
-            font-size: 0.85rem;
-            display: flex;
-            align-items: center;
-            margin-bottom: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .row-item { flex: 1; text-align: center; font-size: 0.95rem; color: #2B3674; font-weight: 500; }
-        .row-item-left { flex: 1; text-align: left; padding-left: 20px; font-size: 0.95rem; color: #2B3674; font-weight: 500; }
-        
-        /* 7. 태그 스타일 */
-        .badge { padding: 6px 12px; border-radius: 30px; font-size: 0.75rem; font-weight: 700; }
-        .badge-red { background-color: #FEE2E2; color: #DC2626; }
-        .badge-blue { background-color: #E0E7FF; color: #4318FF; } /* 퍼플 블루 */
-        .badge-gray { background-color: #F4F7FE; color: #A3AED0; }
-
-        /* 8. 합계 박스 스타일 (Gradient Card) */
-        .total-box {
-            background: linear-gradient(135deg, #868CFF 0%, #4318FF 100%); /* Learn.io 퍼플 */
-            border-radius: 20px;
-            padding: 25px;
-            margin-bottom: 25px;
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            color: white;
-            box-shadow: 0px 10px 20px rgba(67, 24, 255, 0.2);
-        }
-        .total-label { font-size: 0.9rem; color: #E9E3FF; margin-bottom: 5px; display: block; text-align: center; font-weight: 500;}
-        .total-value { font-size: 1.5rem; font-weight: 700; color: white; display: block; text-align: center;}
-        
-        /* 사이드바 스타일링 */
-        [data-testid="stSidebar"] {
-            background-color: white;
-            border-right: none;
-            box-shadow: 4px 0px 20px rgba(112, 144, 176, 0.05);
-        }
+        .badge { padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; }
+        .badge-red { background-color: #fee2e2; color: #991b1b; }
+        .badge-blue { background-color: #dbeafe; color: #1e40af; }
+        .badge-gray { background-color: #f1f5f9; color: #475569; }
+        .total-box { background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 20px; display: flex; justify-content: space-around; align-items: center; }
+        .total-label { font-size: 0.85rem; color: #64748b; margin-bottom: 4px; display: block; text-align: center;}
+        .total-value { font-size: 1.2rem; font-weight: 800; color: #0f172a; display: block; text-align: center;}
     </style>
 """, unsafe_allow_html=True)
 
@@ -155,7 +77,6 @@ if not all_sheets:
         st.rerun()
     st.stop()
 
-# 시트 이름 매핑
 sheet_keys = list(all_sheets.keys())
 budget_sheet_name = next((s for s in sheet_keys if '기준' in s or 'Budget' in s), None)
 expense_sheet_name = next((s for s in sheet_keys if '지출' in s or 'Expense' in s), None)
@@ -168,8 +89,7 @@ overtime_sheet_name = next((s for s in sheet_keys if '연장' in s or 'Overtime'
 with st.sidebar:
     st.title("통합 관리 시스템")
     st.markdown("---")
-    # 라디오 버튼 대신 더 깔끔한 선택지 UI 제공 가능하나 Streamlit 기본 위젯 사용
-    menu = st.radio("MAIN MENU", ["💰 예산 관리", "🏖️ 연차 관리", "⏰ 연장근무 관리"])
+    menu = st.radio("업무 모듈", ["💰 예산 관리", "🏖️ 연차 관리", "⏰ 연장근무 관리"])
     st.markdown("---")
     
     # [QR 코드]
@@ -181,9 +101,9 @@ with st.sidebar:
 
     with st.expander("📱 모바일 접속 QR"):
         if has_qrcode:
-            st.caption("Scan to access")
+            st.caption("아래 QR코드를 스캔하면 로그인 없이 접속됩니다.")
             default_url = "https://my-budget-dashboard-ebrzrzbmslu8xh6dphqtin.streamlit.app/"
-            app_url = st.text_input("URL", value=default_url)
+            app_url = st.text_input("접속 주소", value=default_url)
             if app_url:
                 try:
                     qr = qrcode.QRCode(box_size=10, border=2)
@@ -192,24 +112,55 @@ with st.sidebar:
                     img = qr.make_image(fill_color="black", back_color="white")
                     buffer = BytesIO()
                     img.save(buffer, format="PNG")
-                    st.image(buffer, caption="Mobile Access", use_container_width=True)
+                    st.image(buffer, caption="스캔하여 바로 접속", use_container_width=True)
                 except:
-                    st.warning("QR Error")
+                    st.warning("QR 생성 실패")
 
 # =============================================================================
 # [PART A] 예산 관리
 # =============================================================================
 if menu == "💰 예산 관리":
     if not budget_sheet_name or not expense_sheet_name:
-        st.error("예산 데이터 시트를 찾을 수 없습니다.")
+        st.error("예산 데이터 시트를 찾을 수 없습니다. (기준정보/지출내역)")
         st.stop()
 
+    # 1. 예산(기준정보) 데이터 처리
     df_budget = all_sheets[budget_sheet_name].fillna(0)
+    
+    # 숫자형 변환 및 컬럼 분류
+    # '팀명', '배정예산'(기본) 외에 '추가'가 포함된 컬럼을 찾습니다.
+    # 예: "1월_추가", "추가예산" 등
+    
+    # 먼저 모든 컬럼 숫자 변환 시도 (팀명 제외)
     for col in df_budget.columns:
         if col != '팀명': df_budget[col] = safe_numeric(df_budget[col])
-    df_budget['총예산'] = df_budget.iloc[:, 1:].sum(axis=1)
-    df_base = df_budget[['팀명', '총예산']]
+    
+    # 기본 예산 컬럼 찾기 (배정예산 or Budget)
+    base_col = next((c for c in df_budget.columns if '배정' in c or '기본' in c), None)
+    
+    # 추가 예산 컬럼 찾기 (컬럼명에 '추가'가 포함된 모든 컬럼)
+    add_cols = [c for c in df_budget.columns if '추가' in c]
+    
+    if base_col:
+        df_budget['기본예산'] = df_budget[base_col]
+    else:
+        # 없으면 첫번째 숫자 컬럼을 기본예산으로 가정하거나 0 처리
+        num_cols = df_budget.select_dtypes(include=['number']).columns
+        df_budget['기본예산'] = df_budget[num_cols[0]] if len(num_cols) > 0 else 0
 
+    # 추가 예산 합계 계산
+    if add_cols:
+        df_budget['추가예산합계'] = df_budget[add_cols].sum(axis=1)
+    else:
+        df_budget['추가예산합계'] = 0
+        
+    # 총 예산 = 기본 + 추가
+    df_budget['총예산'] = df_budget['기본예산'] + df_budget['추가예산합계']
+    
+    # 필요한 컬럼만 추출하여 Base Dataframe 생성
+    df_base = df_budget[['팀명', '기본예산', '추가예산합계', '총예산']]
+
+    # 2. 지출(실적) 데이터 처리
     df_expense = all_sheets[expense_sheet_name].fillna(0)
     date_col = next((c for c in df_expense.columns if '날짜' in c or 'Date' in c), None)
     if date_col:
@@ -228,14 +179,14 @@ if menu == "💰 예산 관리":
     df_expense['대분류'] = df_expense['대분류'].astype(str)
     df_expense['소분류'] = df_expense['소분류'].astype(str)
 
+    # 3. 필터 UI
     with st.sidebar:
-        st.subheader("Filter")
+        st.subheader("예산 필터")
         month_list = sorted([m for m in df_expense['월'].unique() if m != '날짜없음'], reverse=True)
         period_option = st.selectbox("기간", ["전체 누적"] + month_list)
         team_list = sorted(df_base['팀명'].unique())
         team_option = st.selectbox("부서", ["전체 부서"] + team_list)
-        
-        st.caption("Category")
+        st.caption("항목 필터")
         main_cats = ["전체"] + sorted(df_expense['대분류'].unique())
         cat_main = st.selectbox("대분류", main_cats)
         sub_cats = ["전체"]
@@ -245,6 +196,7 @@ if menu == "💰 예산 관리":
             sub_cats += sorted(df_expense['소분류'].unique())
         cat_sub = st.selectbox("소분류", sub_cats)
 
+    # 4. 데이터 필터링 및 병합
     df_filtered = df_expense.copy()
     period_label = "전체 기간"
     if period_option != "전체 누적":
@@ -258,22 +210,28 @@ if menu == "💰 예산 관리":
         df_base = df_base[df_base['팀명'] == team_option]
         df_filtered = df_filtered[df_filtered['팀명'] == team_option]
 
+    # 최종 병합 (기준정보 + 지출합계)
     df_dash = pd.merge(df_base, exp_summary, on='팀명', how='left').fillna(0)
+    
+    # 잔액 계산 (자동 삭감 로직: 총예산 - 사용액 = 잔액)
+    # 전월에 많이 썼으면 누적 사용액이 커지므로, 잔액은 자동으로 줄어듭니다.
     df_dash['잔액'] = df_dash['총예산'] - df_dash['사용액']
     df_dash['집행률'] = df_dash.apply(lambda x: (x['사용액'] / x['총예산'] * 100) if x['총예산'] > 0 else 0, axis=1)
+    
     if cat_main == "전체" and cat_sub == "전체":
         df_dash = df_dash[~((df_dash['총예산'] == 0) & (df_dash['사용액'] == 0))]
 
+    # 5. UI 출력
     st.title("💰 예산 관리 대시보드")
-    st.caption(f"Status: {team_option} / {period_label}")
+    st.caption(f"기준: {team_option} / {period_label}")
     
     tot_b, tot_s, tot_r = df_dash['총예산'].sum(), df_dash['사용액'].sum(), df_dash['잔액'].sum()
     avg_r = (tot_s / tot_b * 100) if tot_b > 0 else 0
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("총 배정 예산", f"{tot_b:,.0f}원")
+    c1.metric("총 배정 예산", f"{tot_b:,.0f}원", delta="기본+추가")
     c2.metric("총 사용액", f"{tot_s:,.0f}원", f"{avg_r:.1f}%", delta_color="inverse")
-    c3.metric("현재 잔액", f"{tot_r:,.0f}원")
+    c3.metric("현재 잔액", f"{tot_r:,.0f}원", delta="Remain")
     c4.metric("지출 건수", f"{len(df_filtered):,}건")
 
     st.divider()
@@ -283,9 +241,9 @@ if menu == "💰 예산 관리":
         st.subheader("📊 예산 집행률")
         if not df_dash.empty:
             fig = px.pie(df_dash, values='사용액', names='팀명', hole=0.6, color_discrete_sequence=px.colors.qualitative.Prism)
-            fig.update_layout(showlegend=True, height=400, margin=dict(t=20, b=20, l=20, r=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+            fig.update_layout(showlegend=True, height=400, margin=dict(t=20, b=20, l=20, r=20))
             if tot_s > 0:
-                fig.add_annotation(text=f"Total\n{tot_s/10000:,.0f}만", x=0.5, y=0.5, font_size=24, showarrow=False, font_weight="bold", font_color="#2B3674")
+                fig.add_annotation(text=f"Total\n{tot_s/10000:,.0f}만", x=0.5, y=0.5, font_size=24, showarrow=False, font_weight="bold")
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("데이터 없음")
@@ -295,25 +253,25 @@ if menu == "💰 예산 관리":
         if not df_dash.empty:
             for i, row in df_dash.iterrows():
                 pct = min(row['집행률'], 100)
-                # Soft UI Color Palette
-                status_color = "#4318FF" if pct < 80 else ("#FFB547" if pct < 100 else "#FF5630") # Indigo, Orange, Red
-                bg_bar = "#EFF4FB"
+                status_color = "#2563eb" if pct < 80 else ("#d97706" if pct < 100 else "#dc2626")
                 
+                # [수정] 카드 UI에 추가 예산 및 사용액 명시
                 st.markdown(f"""
-                    <div style="background:white; padding:20px; border-radius:16px; margin-bottom:15px; box-shadow: 0px 3px 10px rgba(0,0,0,0.03);">
-                        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-                            <span style="font-weight:700; color:#2B3674; font-size:1.05rem;">{row['팀명']}</span>
-                            <span style="font-weight:800; color:{status_color};">{row['집행률']:.1f}%</span>
+                    <div style="background:white; padding:15px; border-radius:10px; border:1px solid #e2e8f0; margin-bottom:10px;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                            <span style="font-weight:bold; color:#1e293b;">{row['팀명']}</span>
+                            <span style="font-weight:bold; color:{status_color};">{row['집행률']:.1f}%</span>
                         </div>
-                        <div style="width:100%; background-color:{bg_bar}; height:10px; border-radius:5px; margin-bottom:12px;">
-                            <div style="width:{pct}%; background-color:{status_color}; height:10px; border-radius:5px;"></div>
+                        <div style="width:100%; background-color:#f1f5f9; height:8px; border-radius:4px; margin-bottom:8px;">
+                            <div style="width:{pct}%; background-color:{status_color}; height:8px; border-radius:4px;"></div>
                         </div>
-                        <div style="display:flex; justify-content:space-between; font-size:0.85rem; color:#A3AED0; font-weight:500;">
-                            <span>예산: {row['총예산']:,.0f}</span>
-                            <span>사용: <strong style="color:#2B3674;">{row['사용액']:,.0f}</strong></span>
+                        <div style="display:flex; justify-content:space-between; font-size:0.85rem; color:#64748b; margin-bottom:2px;">
+                            <span>기본: {row['기본예산']:,.0f}</span>
+                            <span>사용: <strong style="color:#1e293b;">{row['사용액']:,.0f}</strong></span>
                         </div>
-                        <div style="text-align:right; font-size:0.9rem; color:#2B3674; margin-top:5px;">
-                             잔액: <strong>{row['잔액']:,.0f}</strong>
+                        <div style="display:flex; justify-content:space-between; font-size:0.85rem; color:#64748b;">
+                            <span>추가: <strong style="color:#2563eb;">+{row['추가예산합계']:,.0f}</strong></span>
+                            <span>잔액: <strong>{row['잔액']:,.0f}</strong></span>
                         </div>
                     </div>
                 """, unsafe_allow_html=True)
@@ -324,8 +282,8 @@ if menu == "💰 예산 관리":
     st.markdown(f"""
         <div class="total-box">
             <div style="text-align:left; width:100%; display:flex; justify-content:space-between; align-items:center;">
-                <span class="total-label" style="color:#E9E3FF; font-size:1.1rem; text-align:left;">🧾 조회 내역 합계</span>
-                <span class="total-value" style="font-size:1.6rem;">{df_filtered['금액'].sum():,.0f} 원</span>
+                <span style="font-weight: bold; color: #475569;">🧾 조회 내역 합계</span>
+                <span style="font-size: 1.4rem; font-weight: 800; color: #2563eb;">{df_filtered['금액'].sum():,.0f} 원</span>
             </div>
         </div>
     """, unsafe_allow_html=True)
@@ -348,12 +306,12 @@ if menu == "💰 예산 관리":
                 amt_str = f"{int(row['금액']):,}"
                 st.markdown(f"""
                     <div class="custom-row">
-                        <div class="row-item" style="color:#A3AED0; font-size:0.85rem;">{date_str}</div>
+                        <div class="row-item" style="color:#64748b; font-size:0.85rem;">{date_str}</div>
                         <div class="row-item"><strong>{row['팀명']}</strong></div>
                         <div class="row-item"><span class="badge badge-gray">{row['대분류']}</span></div>
                         <div class="row-item"><span class="badge badge-gray">{row['소분류']}</span></div>
-                        <div class="row-item-left" style="flex:2; color:#2B3674;">{row['상세내역']}</div>
-                        <div class="row-item" style="text-align:right; padding-right:20px; font-weight:bold; color:#2B3674;">{amt_str}원</div>
+                        <div class="row-item-left" style="flex:2;">{row['상세내역']}</div>
+                        <div class="row-item" style="text-align:right; padding-right:20px; font-weight:bold; color:#1e293b;">{amt_str}원</div>
                     </div>
                 """, unsafe_allow_html=True)
     else:
@@ -373,7 +331,7 @@ elif menu == "🏖️ 연차 관리":
         if col in df_leave.columns: df_leave[col] = safe_numeric(df_leave[col])
 
     with st.sidebar:
-        st.subheader("Filter")
+        st.subheader("연차 필터")
         dept_list = ["전체"] + sorted(df_leave['소속'].unique())
         leave_dept_option = st.selectbox("소속 부서", dept_list)
         risk_criteria = st.slider("촉진 대상 기준 (잔여일)", 5, 25, 10)
@@ -386,12 +344,12 @@ elif menu == "🏖️ 연차 관리":
     tot_liab = df_leave['부채잔액'].sum()
 
     st.title("🏖️ 연차 관리 대시보드")
-    st.caption(f"Status: {leave_dept_option}")
+    st.caption(f"기준: {leave_dept_option} / 촉진 {risk_criteria}일 이상")
 
     k1, k2, k3, k4 = st.columns(4)
-    k1.metric("전사 소진율", f"{avg_usage:.1f}%", delta="Goal 60%")
-    k2.metric("미사용 연차 부채", f"{tot_liab/100000000:.2f}억", "Estimated", delta_color="inverse")
-    k3.metric("촉진 대상자", f"{len(df_risk)}명", f"> {risk_criteria} days", delta_color="inverse")
+    k1.metric("전사 소진율", f"{avg_usage:.1f}%", delta="목표 60%")
+    k2.metric("미사용 연차 부채", f"{tot_liab/100000000:.2f}억", "예상 비용", delta_color="inverse")
+    k3.metric("촉진 대상자", f"{len(df_risk)}명", f"잔여 {risk_criteria}일↑", delta_color="inverse")
     k4.metric("평균 잔여일수", f"{df_leave['잔여일수'].mean():.1f}일")
 
     st.divider()
@@ -402,7 +360,7 @@ elif menu == "🏖️ 연차 관리":
         dept_sum = df_leave.groupby('소속').agg({'사용일수':'sum', '합계':'sum'}).reset_index()
         dept_sum['소진율'] = (dept_sum['사용일수'] / dept_sum['합계'] * 100).fillna(0)
         fig = px.bar(dept_sum, x='소속', y='소진율', text=dept_sum['소진율'].apply(lambda x: f"{x:.1f}%"), color='소진율', color_continuous_scale='Bluyl')
-        fig.update_layout(xaxis_title=None, yaxis_title="소진율(%)", height=450, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+        fig.update_layout(xaxis_title=None, yaxis_title="소진율(%)", height=450)
         st.plotly_chart(fig, use_container_width=True)
 
     with c_risk:
@@ -417,7 +375,7 @@ elif menu == "🏖️ 연차 관리":
                 <div class="total-box">
                     <div><span class="total-label">대상자 총 연차</span><span class="total-value">{r_tot:,.1f}</span></div>
                     <div><span class="total-label">사용 총계</span><span class="total-value">{r_use:,.1f}</span></div>
-                    <div><span class="total-label">잔여 총계</span><span class="total-value" style="color:#FFB547;">{r_rem:,.1f}</span></div>
+                    <div><span class="total-label">잔여 총계</span><span class="total-value" style="color:#ef4444;">{r_rem:,.1f}</span></div>
                     <div><span class="total-label">그룹 소진율</span><span class="total-value">{r_rate:.1f}%</span></div>
                 </div>
             """, unsafe_allow_html=True)
@@ -436,9 +394,9 @@ elif menu == "🏖️ 연차 관리":
                     st.markdown(f"""
                         <div class="custom-row">
                             <div class="row-item"><strong>{row['성명']}</strong></div>
-                            <div class="row-item" style="color:#A3AED0;">{row['소속']}</div>
+                            <div class="row-item" style="color:#64748b;">{row['소속']}</div>
                             <div class="row-item"><span class="badge badge-red">{row['잔여일수']:.1f}일</span></div>
-                            <div class="row-item" style="font-size:0.8rem; color:#A3AED0;">잔여 {risk_criteria}일 이상</div>
+                            <div class="row-item" style="font-size:0.8rem; color:#94a3b8;">잔여 {risk_criteria}일 이상</div>
                         </div>
                     """, unsafe_allow_html=True)
         else:
@@ -461,7 +419,7 @@ elif menu == "🏖️ 연차 관리":
         for _, row in df_show.iterrows():
             st.markdown(f"""
                 <div class="custom-row">
-                    <div class="row-item" style="color:#A3AED0;">{row['소속']}</div>
+                    <div class="row-item" style="color:#64748b;">{row['소속']}</div>
                     <div class="row-item"><strong>{row['성명']}</strong></div>
                     <div class="row-item">{row['합계']:.1f}</div>
                     <div class="row-item">{row['사용일수']:.1f}</div>
@@ -470,7 +428,7 @@ elif menu == "🏖️ 연차 관리":
             """, unsafe_allow_html=True)
 
 # =============================================================================
-# [PART C] 연장근무 관리
+# [PART C] 연장근무 관리 (Improved UI)
 # =============================================================================
 elif menu == "⏰ 연장근무 관리":
     if not overtime_sheet_name:
@@ -496,7 +454,7 @@ elif menu == "⏰ 연장근무 관리":
     
     df_ot['총근무'] = df_ot[valid_num_cols].sum(axis=1)
 
-    # [필터 사이드바 이동]
+    # [수정] 사이드바 필터 이동
     with st.sidebar:
         st.subheader("연장근무 필터")
         unique_months = [m for m in df_ot['월'].unique() if m != '0' and m != 'Unknown']
@@ -511,7 +469,7 @@ elif menu == "⏰ 연장근무 관리":
         team_list = ["전체"] + sorted(df_ot['팀명'].unique())
         ot_team_opt = st.selectbox("소속 팀", team_list)
         
-        # [목표 설정 추가]
+        # [수정] 목표 설정
         target_ratio = st.slider("전년 대비 목표 (%)", 80, 120, 90)
 
     # 데이터 필터링
@@ -537,12 +495,13 @@ elif menu == "⏰ 연장근무 관리":
         night_ratio = (night_sum / total_sum * 100) if total_sum > 0 else 0
         hol_ratio = (hol_sum / total_sum * 100) if total_sum > 0 else 0
 
-        # [목표 표시 추가]
+        # [수정] 목표 표시 (전년 대비 90% 가정)
+        # 실제 전년 데이터가 없으므로 현재 조회된 총합의 목표 비율로 시뮬레이션 표시
         target_val = total_sum * (target_ratio / 100)
 
         k1, k2, k3, k4 = st.columns(4)
         k1.metric("총 근무시간", f"{total_sum:,.1f}h")
-        k2.metric("목표 (전년 대비)", f"{target_val:,.1f}h", f"{target_ratio}%", delta_color="off")
+        k2.metric("목표 (Limit)", f"{target_val:,.1f}h", f"Limit {target_ratio}%", delta_color="off")
         k3.metric("야간 근로", f"{night_sum:,.1f}h", f"{night_ratio:.1f}%", delta_color="off")
         k4.metric("휴일 근로", f"{hol_sum:,.1f}h", f"{hol_ratio:.1f}%", delta_color="off")
 
@@ -555,14 +514,15 @@ elif menu == "⏰ 연장근무 관리":
                 df_chart = df_filtered.groupby('팀명')[valid_num_cols].sum().reset_index()
                 df_long = df_chart.melt(id_vars='팀명', var_name='유형', value_name='시간')
                 
-                # [수정] 팀별 색상 통일 (color='팀명')
+                # [수정] 팀별 색상 통일 (Prism) & 글자 크기 확대
                 fig = px.bar(df_long, x='팀명', y='시간', color='팀명',
-                             color_discrete_sequence=px.colors.qualitative.Prism, # 예산 탭과 동일
+                             color_discrete_sequence=px.colors.qualitative.Prism,
                              text_auto='.0f')
                 
-                # [수정] 텍스트 잘 보이게 조정
-                fig.update_traces(textposition='outside', cliponaxis=False)
-                fig.update_layout(xaxis_title=None, yaxis_title=None, height=350, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                fig.update_traces(textposition='outside', cliponaxis=False, textfont_size=12)
+                fig.update_layout(xaxis_title=None, yaxis_title=None, height=350, 
+                                  paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                                  font=dict(size=14)) # 전체 폰트 확대
                 st.plotly_chart(fig, use_container_width=True)
             else:
                 st.info("데이터 없음")
@@ -589,7 +549,6 @@ elif menu == "⏰ 연장근무 관리":
         st.subheader("주간 진행 현황 (Weekly)")
         
         if sorted_months:
-            # 주간 추이에서도 필터 사용 가능하게 (월 선택은 사이드바와 별도로 유지하거나 연동)
             target_month = st.selectbox("월 선택 (주간용)", sorted_months, key="weekly_month")
             df_weekly = df_ot[df_ot['월'] == target_month]
             
