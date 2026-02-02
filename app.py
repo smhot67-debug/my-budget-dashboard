@@ -456,7 +456,7 @@ elif menu == "⏰ 연장근무 관리":
 
         k1, k2, k3, k4 = st.columns(4)
         k1.metric("총 근무시간", f"{total_sum:,.1f}h")
-        # [수정] color 인자 제거 -> delta로 비율 표시 (또는 색상 제거)
+        # [수정완료] color 인자 제거하고 delta_color="off"와 함께 비율 표시
         k2.metric("연장 근로", f"{ext_sum:,.1f}h", f"{ext_ratio:.1f}%", delta_color="off")
         k3.metric("야간 근로", f"{night_sum:,.1f}h", f"{night_ratio:.1f}%", delta_color="off")
         k4.metric("휴일 근로", f"{hol_sum:,.1f}h", f"{hol_ratio:.1f}%", delta_color="off")
@@ -489,8 +489,9 @@ elif menu == "⏰ 연장근무 관리":
                 except:
                     pass
                 
+                # [수정완료] fill_color -> fillcolor 로 수정
                 fig2 = px.area(trend_df, x='월', y='총근무', markers=True)
-                fig2.update_traces(line_color='#6366f1', fill_color='rgba(99, 102, 241, 0.2)')
+                fig2.update_traces(line_color='#6366f1', fillcolor='rgba(99, 102, 241, 0.2)')
                 fig2.update_layout(xaxis_title=None, yaxis_title=None, height=350)
                 st.plotly_chart(fig2, use_container_width=True)
             else:
