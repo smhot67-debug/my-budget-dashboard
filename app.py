@@ -25,25 +25,19 @@ st.markdown("""
         .material-symbols-rounded { font-family: 'Material Symbols Rounded' !important; }
         .block-container { padding-top: 2rem; }
         
-        /* 카드 디자인 */
         div.css-1r6slb0, div.stDataFrame, div[data-testid="stMetric"] { background-color: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0; }
         div[data-testid="stMetricValue"] { font-size: 1.8rem !important; font-weight: 800 !important; color: #1e293b; }
         
-        /* 커스텀 리스트 스타일 */
         .custom-row { background-color: white; border-bottom: 1px solid #f1f5f9; padding: 12px 0; display: flex; align-items: center; transition: background-color 0.2s; }
         .custom-row:hover { background-color: #f8fafc; }
         .custom-header { background-color: #f8fafc; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 10px 0; font-weight: 700; color: #64748b; font-size: 0.9rem; display: flex; align-items: center; }
         .row-item { flex: 1; text-align: center; font-size: 0.95rem; color: #334155; }
         .row-item-left { flex: 1; text-align: left; padding-left: 20px; font-size: 0.95rem; color: #334155; }
         
-        /* 태그 스타일 */
         .badge { padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; }
         .badge-red { background-color: #fee2e2; color: #991b1b; }
         .badge-blue { background-color: #dbeafe; color: #1e40af; }
         .badge-gray { background-color: #f1f5f9; color: #475569; }
-        .badge-indigo { background-color: #e0e7ff; color: #3730a3; }
-        
-        /* 합계 박스 */
         .total-box { background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 20px; display: flex; justify-content: space-around; align-items: center; }
         .total-label { font-size: 0.85rem; color: #64748b; margin-bottom: 4px; display: block; text-align: center;}
         .total-value { font-size: 1.2rem; font-weight: 800; color: #0f172a; display: block; text-align: center;}
@@ -54,7 +48,7 @@ st.markdown("""
 SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6hnNtH_1tBFJoA25lXzFPjKUGpBfu0H313_QVFDPdHOpWDDQSJQvIlOQpUoczNO7z7jyWbE171ApD/pub?output=xlsx"
 
 # -----------------------------------------------------------------------------
-# 2. 데이터 로드 엔진 (강화됨)
+# 2. 데이터 로드 엔진
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=60)
 def load_all_data():
@@ -69,7 +63,6 @@ def clean_dept_name(name):
     return re.sub(r'^[\d\.\s]+', '', str(name))
 
 def safe_numeric(series):
-    """문자열에 포함된 콤마(,)를 제거하고 숫자로 변환하는 강력한 함수"""
     if series.dtype == 'object':
         return pd.to_numeric(series.astype(str).str.replace(',', ''), errors='coerce').fillna(0)
     else:
@@ -84,12 +77,11 @@ if not all_sheets:
         st.rerun()
     st.stop()
 
-# 시트 이름 매핑
 sheet_keys = list(all_sheets.keys())
 budget_sheet_name = next((s for s in sheet_keys if '기준' in s or 'Budget' in s), None)
 expense_sheet_name = next((s for s in sheet_keys if '지출' in s or 'Expense' in s), None)
 leave_sheet_name = next((s for s in sheet_keys if '원천' in s or 'Leave' in s), None)
-overtime_sheet_name = next((s for s in sheet_keys if '연장' in s or 'Overtime' in s or '근무' in s), None) # 연장근무 시트 찾기
+overtime_sheet_name = next((s for s in sheet_keys if '연장' in s or 'Overtime' in s or '근무' in s), None)
 
 # -----------------------------------------------------------------------------
 # 3. 사이드바 및 공통 로직
@@ -162,6 +154,7 @@ if menu == "💰 예산 관리":
         period_option = st.selectbox("기간", ["전체 누적"] + month_list)
         team_list = sorted(df_base['팀명'].unique())
         team_option = st.selectbox("부서", ["전체 부서"] + team_list)
+        
         st.caption("항목 필터")
         main_cats = ["전체"] + sorted(df_expense['대분류'].unique())
         cat_main = st.selectbox("대분류", main_cats)
@@ -392,21 +385,24 @@ elif menu == "🏖️ 연차 관리":
             """, unsafe_allow_html=True)
 
 # =============================================================================
-# [PART C] 연장근무 관리 (NEW)
+# [PART C] 연장근무 관리 (React UI Porting)
 # =============================================================================
 elif menu == "⏰ 연장근무 관리":
     if not overtime_sheet_name:
-        st.error("연장근무 데이터 시트를 찾을 수 없습니다. 시트명에 '연장' 또는 'Overtime'을 포함해주세요.")
+        st.error("연장근무 데이터 시트('연장' 포함)를 찾을 수 없습니다.")
         st.stop()
 
     # 데이터 로드 및 전처리
     df_ot = all_sheets[overtime_sheet_name].fillna(0)
     
-    # 컬럼 표준화 (유저가 입력한 헤더가 다를 수 있으므로)
-    # 예상 헤더: 월, 주차, 팀명, 이름, 연장시간(or 연장근로), 야근시간, 휴일시간
-    df_ot.columns = [c.replace(' ','') for c in df_ot.columns] # 공백제거
+    # 컬럼 표준화 (공백 제거)
+    df_ot.columns = [c.replace(' ','').strip() for c in df_ot.columns]
     
-    # 숫자형 변환
+    # 월 컬럼 타입 통일 (문자열)
+    if '월' in df_ot.columns:
+        df_ot['월'] = df_ot['월'].astype(str)
+
+    # 숫자형 변환 (safe_numeric 적용)
     num_cols = ['연장시간', '연장근로', '야근시간', '휴일시간']
     valid_num_cols = []
     for c in df_ot.columns:
@@ -414,80 +410,106 @@ elif menu == "⏰ 연장근무 관리":
             df_ot[c] = safe_numeric(df_ot[c])
             valid_num_cols.append(c)
     
-    # 합계 컬럼 생성 (Total)
+    # 합계 컬럼
     df_ot['총근무'] = df_ot[valid_num_cols].sum(axis=1)
 
-    # 필터 UI
-    with st.sidebar:
-        st.subheader("연장근무 필터")
-        month_list = ["전체 누적"] + sorted([m for m in df_ot['월'].unique() if m != 0], reverse=True)
-        ot_month_opt = st.selectbox("조회 월", month_list)
+    # Tab 구조 (React App 모방)
+    tab_dashboard, tab_weekly = st.tabs(["📊 통합 현황 (Monthly)", "📈 주간 추이 (Weekly)"])
+
+    # 1. 통합 현황 (Dashboard 1)
+    with tab_dashboard:
+        st.subheader("통합 연장근무 현황")
         
-        team_list = ["전체"] + sorted(df_ot['팀명'].unique())
-        ot_team_opt = st.selectbox("소속 팀", team_list)
+        # 필터 (월 선택)
+        month_list = ["전체 누적"] + sorted([m for m in df_ot['월'].unique() if m != '0'], key=lambda x: int(re.sub(r'\D', '', x)) if re.sub(r'\D', '', x) else 0)
         
-        # 전년도 대비 목표 비율 (React 코드의 기능 이식)
-        target_ratio = st.slider("전년 대비 목표 비율 (%)", 50, 120, 90)
-
-    # 필터링
-    df_ot_filtered = df_ot.copy()
-    if ot_month_opt != "전체 누적":
-        df_ot_filtered = df_ot_filtered[df_ot_filtered['월'] == ot_month_opt]
-    if ot_team_opt != "전체":
-        df_ot_filtered = df_ot_filtered[df_ot_filtered['팀명'] == ot_team_opt]
-
-    # KPI 계산
-    total_ot = df_ot_filtered['총근무'].sum()
-    ot_ext = df_ot_filtered[[c for c in df_ot.columns if '연장' in c]].sum().sum()
-    ot_night = df_ot_filtered[[c for c in df_ot.columns if '야근' in c]].sum().sum()
-    ot_hol = df_ot_filtered[[c for c in df_ot.columns if '휴일' in c]].sum().sum()
-
-    st.title("⏰ 연장근무 관리 시스템")
-    st.caption(f"기준: {ot_team_opt} / {ot_month_opt}")
-    
-    # 1. KPI Cards
-    k1, k2, k3, k4 = st.columns(4)
-    k1.metric("총 초과근무", f"{total_ot:,.1f}h", delta="Total")
-    k2.metric("연장 근로", f"{ot_ext:,.1f}h", f"{ot_ext/total_ot*100 if total_ot else 0:.1f}%", delta_color="off")
-    k3.metric("야간 근로", f"{ot_night:,.1f}h", f"{ot_night/total_ot*100 if total_ot else 0:.1f}%", delta_color="off")
-    k4.metric("휴일 근로", f"{ot_hol:,.1f}h", f"{ot_hol/total_ot*100 if total_ot else 0:.1f}%", delta_color="off")
-
-    st.divider()
-
-    # 2. Charts
-    tab1, tab2 = st.tabs(["📊 팀별 현황 (Bar)", "📈 주간 추이 (Line)"])
-    
-    with tab1:
-        # 팀별/유형별 Stacked Bar
-        # 데이터 재구조화 (Wide -> Long) for Plotly
-        df_chart = df_ot_filtered.groupby('팀명')[valid_num_cols].sum().reset_index()
-        df_long = df_chart.melt(id_vars='팀명', var_name='유형', value_name='시간')
+        c_filter, c_ratio = st.columns([2, 4])
+        with c_filter:
+            ot_month_opt = st.selectbox("조회 기간", month_list)
         
-        fig = px.bar(df_long, x='팀명', y='시간', color='유형', 
-                     color_discrete_map={'연장시간': '#4f46e5', '연장근로': '#4f46e5', '야근시간': '#e11d48', '휴일시간': '#0ea5e9'},
-                     text_auto='.1f', title="팀별 근무 유형 상세")
-        fig.update_layout(height=400)
-        st.plotly_chart(fig, use_container_width=True)
+        # 데이터 필터링
+        df_filtered = df_ot.copy()
+        if ot_month_opt != "전체 누적":
+            df_filtered = df_filtered[df_filtered['월'] == ot_month_opt]
+        
+        # KPI Cards
+        total_sum = df_filtered['총근무'].sum()
+        ext_sum = df_filtered[[c for c in df_ot.columns if '연장' in c]].sum().sum()
+        night_sum = df_filtered[[c for c in df_ot.columns if '야근' in c]].sum().sum()
+        hol_sum = df_filtered[[c for c in df_ot.columns if '휴일' in c]].sum().sum()
 
-    with tab2:
-        # 주차별 추이 (월 선택 시에만 유효)
-        if '주차' in df_ot_filtered.columns:
-            weekly_trend = df_ot_filtered.groupby(['주차', '팀명'])['총근무'].sum().reset_index()
-            fig2 = px.line(weekly_trend, x='주차', y='총근무', color='팀명', markers=True, title="주간 근무 발생 추이")
-            fig2.update_layout(height=400)
-            st.plotly_chart(fig2, use_container_width=True)
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("총 근무시간", f"{total_sum:,.1f}h")
+        k2.metric("연장 근로", f"{ext_sum:,.1f}h", color="#4f46e5") # Indigo
+        k3.metric("야간 근로", f"{night_sum:,.1f}h", color="#e11d48") # Rose
+        k4.metric("휴일 근로", f"{hol_sum:,.1f}h", color="#0ea5e9") # Sky
+
+        st.markdown("---")
+        
+        # Charts
+        c1, c2 = st.columns([1, 1])
+        with c1:
+            st.markdown("##### 🏢 팀별 근무 유형 비교")
+            df_chart = df_filtered.groupby('팀명')[valid_num_cols].sum().reset_index()
+            df_long = df_chart.melt(id_vars='팀명', var_name='유형', value_name='시간')
+            
+            fig = px.bar(df_long, x='팀명', y='시간', color='유형',
+                         color_discrete_map={'연장시간':'#4f46e5', '연장근로':'#4f46e5', '야근시간':'#e11d48', '휴일시간':'#0ea5e9'},
+                         text_auto='.0f')
+            fig.update_layout(xaxis_title=None, yaxis_title=None, height=350)
+            st.plotly_chart(fig, use_container_width=True)
+            
+        with c2:
+            st.markdown("##### 📅 월별 통합 추이")
+            # 월별 집계
+            if '월' in df_ot.columns:
+                trend_df = df_ot.groupby('월')['총근무'].sum().reset_index()
+                # 월 정렬 (숫자 기준)
+                trend_df['sort_key'] = trend_df['월'].apply(lambda x: int(re.sub(r'\D', '', str(x))) if re.sub(r'\D', '', str(x)) else 0)
+                trend_df = trend_df.sort_values('sort_key')
+                
+                fig2 = px.area(trend_df, x='월', y='총근무', markers=True)
+                fig2.update_traces(line_color='#6366f1', fill_color='rgba(99, 102, 241, 0.2)')
+                fig2.update_layout(xaxis_title=None, yaxis_title=None, height=350)
+                st.plotly_chart(fig2, use_container_width=True)
+
+    # 2. 주간 추이 (Dashboard 2)
+    with tab_weekly:
+        st.subheader("주간 진행 현황 (Weekly)")
+        
+        # 월 선택 (주간 보기는 월 선택 필수)
+        w_months = sorted([m for m in df_ot['월'].unique() if m != '0'], key=lambda x: int(re.sub(r'\D', '', x)) if re.sub(r'\D', '', x) else 0)
+        target_month = st.selectbox("월 선택", w_months, key="weekly_month")
+        
+        df_weekly = df_ot[df_ot['월'] == target_month]
+        
+        if '주차' in df_weekly.columns:
+            c_w1, c_w2 = st.columns([1, 1])
+            
+            with c_w1:
+                st.markdown("##### 📊 주차별 팀 합계")
+                week_chart = df_weekly.groupby(['주차', '팀명'])['총근무'].sum().reset_index()
+                fig3 = px.bar(week_chart, x='주차', y='총근무', color='팀명', barmode='group')
+                fig3.update_layout(height=400)
+                st.plotly_chart(fig3, use_container_width=True)
+                
+            with c_w2:
+                st.markdown("##### 📉 팀별 누적 추이")
+                # 주차 정렬 후 누적 계산
+                week_chart['주차_num'] = week_chart['주차'].apply(lambda x: int(re.sub(r'\D', '', str(x))) if re.sub(r'\D', '', str(x)) else 0)
+                week_chart = week_chart.sort_values('주차_num')
+                week_chart['누적근무'] = week_chart.groupby('팀명')['총근무'].cumsum()
+                
+                fig4 = px.line(week_chart, x='주차', y='누적근무', color='팀명', markers=True)
+                fig4.update_layout(height=400)
+                st.plotly_chart(fig4, use_container_width=True)
         else:
-            st.info("'주차' 컬럼이 없어 주간 추이를 표시할 수 없습니다.")
+            st.warning("'주차' 컬럼이 데이터에 없습니다.")
 
     st.divider()
+    st.subheader("🗓️ 상세 근무 내역")
     
-    # 3. 상세 내역 (주간 리포트 스타일)
-    st.subheader("🗓️ 주간 상세 근무 내역")
-    
-    # 정렬: 월 -> 주차 -> 팀
-    sort_cols = [c for c in ['월', '주차', '팀명'] if c in df_ot_filtered.columns]
-    df_ot_show = df_ot_filtered.sort_values(sort_cols).reset_index(drop=True)
-
+    # 상세 내역 리스트 UI
     st.markdown("""
         <div class="custom-header">
             <div class="row-item">월/주차</div>
@@ -500,16 +522,20 @@ elif menu == "⏰ 연장근무 관리":
         </div>
     """, unsafe_allow_html=True)
 
+    # 필터된 데이터 (월간/주간 통합)
+    # 현재 탭에 따라 보여줄 데이터 결정 or 항상 전체/월간 보여주기 (여기선 1번 탭 기준)
+    df_show_ot = df_filtered.sort_values(['월', '주차', '팀명']).reset_index(drop=True)
+
     with st.container(height=500):
-        for _, row in df_ot_show.iterrows():
-            # 컬럼 매핑 (데이터에 따라 유동적)
+        for _, row in df_show_ot.iterrows():
             ext = row.get('연장근로', row.get('연장시간', 0))
             night = row.get('야근시간', 0)
             hol = row.get('휴일시간', 0)
+            week_str = row.get('주차', '')
             
             st.markdown(f"""
                 <div class="custom-row">
-                    <div class="row-item" style="color:#64748b;">{row.get('월','-')} {row.get('주차','')}</div>
+                    <div class="row-item" style="color:#64748b;">{row['월']} {week_str}</div>
                     <div class="row-item"><strong>{row['팀명']}</strong></div>
                     <div class="row-item">{row['이름']}</div>
                     <div class="row-item" style="color:#4f46e5;">{ext:.1f}</div>
