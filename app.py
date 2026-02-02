@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# [CSS] 프리미엄 UI 디자인
+# [CSS] 프리미엄 UI 디자인 (헤더 스타일 강화)
 st.markdown("""
     <style>
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -109,27 +109,34 @@ st.markdown("""
             align-items: center;
             transition: all 0.2s ease;
             border-radius: 12px;
-            margin-bottom: 5px; /* 항목별 간격 */
+            margin-bottom: 5px;
         }
         .custom-row:hover { background-color: #F4F7FE; transform: translateX(5px); }
         
+        /* [NEW] 헤더 디자인 강화 (배경색 & 폰트 컬러 적용) */
         .custom-header {
-            background-color: #F4F7FE;
-            border-radius: 12px;
-            padding: 15px 10px;
-            font-weight: 600;
-            color: #A3AED0;
-            font-size: 0.9rem;
+            background-color: #EEF2FF; /* 연한 인디고 배경 */
+            border-radius: 16px;
+            padding: 18px 10px;
+            font-weight: 700;
+            color: #4318FF; /* 브랜드 컬러 텍스트 */
+            font-size: 0.95rem;
             display: flex;
             align-items: center;
-            margin-bottom: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+            border: 1px solid #E0E7FF;
         }
         
         .row-item { flex: 1; text-align: center; font-size: 0.95rem; color: #2B3674; font-weight: 500; }
         .row-item-left { flex: 1; text-align: left; padding-left: 20px; font-size: 0.95rem; color: #2B3674; font-weight: 500; }
         
+        /* 헤더 내부 아이템 컬러 오버라이드 */
+        .custom-header .row-item, .custom-header .row-item-left {
+            color: #4318FF; 
+            font-weight: 800;
+        }
+
         /* 태그 */
         .badge { padding: 6px 12px; border-radius: 30px; font-size: 0.75rem; font-weight: 700; }
         .badge-red { background-color: #FEE2E2; color: #DC2626; }
@@ -157,12 +164,8 @@ st.markdown("""
             box-shadow: 4px 0px 20px rgba(112, 144, 176, 0.05);
             border-right: none;
         }
-        /* 사이드바 메뉴 폰트 확대 */
-        div.row-widget.stRadio > div[role="radiogroup"] > label p {
-            font-size: 1.15rem !important; 
-        }
 
-        /* [NEW] 탭 버튼 스타일 (잘림 방지 및 대형화) */
+        /* 탭 버튼 스타일 */
         div.row-widget.stRadio > div {
             background-color: white;
             padding: 10px;
@@ -244,6 +247,7 @@ if not all_sheets:
         st.rerun()
     st.stop()
 
+# 시트 이름 매핑
 sheet_keys = list(all_sheets.keys())
 budget_sheet_name = next((s for s in sheet_keys if '기준' in s or 'Budget' in s), None)
 expense_sheet_name = next((s for s in sheet_keys if '지출' in s or 'Expense' in s), None)
@@ -350,7 +354,6 @@ if menu == "💰 예산 관리":
             sub_cats += sorted(df_expense[df_expense['대분류'] == cat_main]['소분류'].astype(str).unique())
         cat_sub = st.selectbox("소분류", sub_cats)
 
-    # 월별 예산 및 이월 계산
     monthly_exp = df_expense.groupby(['팀명', '월'])['금액'].sum().reset_index()
     dashboard_rows = []
     
@@ -420,7 +423,6 @@ if menu == "💰 예산 관리":
         </div>
     """, unsafe_allow_html=True)
     
-    # [수정] Syntax Error Fix (들여쓰기 교정)
     if cat_main == "전체":
         tot_b = df_dash['예산'].sum()
         tot_s = df_dash['사용액'].sum()
@@ -478,6 +480,7 @@ if menu == "💰 예산 관리":
     st.subheader("📝 상세 지출 내역")
     if not df_detail_filtered.empty:
         df_show = df_detail_filtered.sort_values('날짜', ascending=False).reset_index(drop=True)
+        # [수정] 헤더 UI 적용
         st.markdown("""
             <div class="custom-header">
                 <div class="row-item">날짜</div>
@@ -573,6 +576,16 @@ elif menu == "🏖️ 연차 관리":
                 </div>
             """, unsafe_allow_html=True)
             
+            # [수정] 헤더 UI 적용
+            st.markdown("""
+                <div class="custom-header">
+                    <div class="row-item">성명/직급</div>
+                    <div class="row-item">소속</div>
+                    <div class="row-item">잔여일수</div>
+                    <div class="row-item">비고</div>
+                </div>
+            """, unsafe_allow_html=True)
+
             with st.container(height=300):
                 for _, row in df_risk.iterrows():
                     st.markdown(f"""
@@ -589,6 +602,8 @@ elif menu == "🏖️ 연차 관리":
     st.divider()
     st.subheader("👥 전체 임직원 명부")
     df_show = df_leave.sort_values('소속').copy()
+    
+    # [수정] 헤더 UI 적용
     st.markdown("""
         <div class="custom-header">
             <div class="row-item">소속</div>
@@ -657,7 +672,6 @@ elif menu == "⏰ 연장근무 관리":
         </div>
     """, unsafe_allow_html=True)
 
-    # [수정] 탭 버튼 - UI 고급화
     view_mode = st.radio("VIEW MODE", ["📊 통합 현황", "📈 주간 추이"], horizontal=True, label_visibility="collapsed")
     st.markdown("---")
 
@@ -693,14 +707,12 @@ elif menu == "⏰ 연장근무 관리":
         with c1:
             st.markdown("##### 🏢 팀별 근무 유형 비교")
             
-            # 차트용 팀 목록 확보
             chart_teams = master_teams[1:] if ot_team_opt == "전체 팀" else [ot_team_opt]
             df_agg = df_filtered.groupby('팀명')[valid_num_cols].sum().reset_index()
             df_agg = df_agg.set_index('팀명').reindex(chart_teams).fillna(0).reset_index()
             
             df_long = df_agg.melt(id_vars='팀명', var_name='유형', value_name='시간')
             
-            # [수정] 가로 누적 막대 (Horizontal Stacked Bar)
             color_map = {
                 '연장시간': '#3B82F6', '연장근로': '#3B82F6', # Blue
                 '야근시간': '#EF4444', # Red
@@ -713,7 +725,6 @@ elif menu == "⏰ 연장근무 관리":
                          color_discrete_map=color_map,
                          text_auto='.0f')
             
-            # [수정] 배경 화이트 & 텍스트 화이트
             fig.update_traces(textposition='auto', textfont_size=12, textfont_color='white')
             fig.update_layout(xaxis_title=None, yaxis_title=None, height=400, 
                               paper_bgcolor='white', plot_bgcolor='white',
@@ -746,7 +757,6 @@ elif menu == "⏰ 연장근무 관리":
                 st.markdown("##### 📊 주차별 합계")
                 week_chart = df_filtered.groupby(['주차', '팀명'])['총근무'].sum().reset_index()
                 if not week_chart.empty:
-                    # [수정] 배경 화이트
                     fig3 = px.bar(week_chart, x='주차', y='총근무', color='팀명', barmode='group', color_discrete_sequence=px.colors.qualitative.Prism)
                     fig3.update_traces(textfont_color='white')
                     fig3.update_layout(height=400, paper_bgcolor='white', plot_bgcolor='white')
@@ -771,6 +781,7 @@ elif menu == "⏰ 연장근무 관리":
     st.divider()
     st.subheader("🗓️ 상세 근무 내역")
     
+    # [수정] 헤더 UI 적용
     st.markdown("""
         <div class="custom-header">
             <div class="row-item">월/주차</div>
@@ -796,7 +807,7 @@ elif menu == "⏰ 연장근무 관리":
                 
                 st.markdown(f"""
                     <div class="custom-row">
-                        <div class="row-item" style="color:#A3AED0;">{row['월']} {week_str}</div>
+                        <div class="row-item" style="color:#64748B;">{row['월']} {week_str}</div>
                         <div class="row-item"><strong>{row['팀명']}</strong></div>
                         <div class="row-item">{row['이름']}</div>
                         <div class="row-item" style="color:#3B82F6;">{ext:.1f}</div>
