@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# [CSS] 프리미엄 UI & 모바일 반응형 디자인
+# [CSS] 프리미엄 UI 디자인
 st.markdown("""
     <style>
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -31,13 +31,11 @@ st.markdown("""
             font-family: 'Pretendard', sans-serif;
         }
 
+        /* 아이콘 폰트 보호 */
         .material-symbols-rounded { font-family: 'Material Symbols Rounded' !important; }
 
-        /* 컨테이너 여백 (모바일 대응) */
+        /* 컨테이너 여백 */
         .block-container { padding-top: 1.5rem; padding-bottom: 5rem; }
-        @media (max-width: 640px) {
-            .block-container { padding-left: 0.5rem; padding-right: 0.5rem; }
-        }
 
         /* 카드 박스 스타일 */
         div.css-1r6slb0, div.stDataFrame, div[data-testid="stMetric"] {
@@ -48,14 +46,11 @@ st.markdown("""
             border: none;
         }
 
-        /* 메트릭 숫자 (모바일 대응) */
+        /* 메트릭 숫자 */
         div[data-testid="stMetricValue"] {
             font-size: 2rem !important;
             font-weight: 700 !important;
             color: #2B3674;
-        }
-        @media (max-width: 640px) {
-            div[data-testid="stMetricValue"] { font-size: 1.5rem !important; }
         }
         div[data-testid="stMetricLabel"] {
             font-size: 0.95rem !important;
@@ -63,7 +58,7 @@ st.markdown("""
             font-weight: 500;
         }
 
-        /* 모던 헤더 디자인 */
+        /* [NEW] 모던 헤더 디자인 */
         .modern-header {
             background: white;
             padding: 25px 30px;
@@ -89,14 +84,13 @@ st.markdown("""
             font-weight: 500;
         }
 
-        /* KPI 카드 (Shiftee Style) */
+        /* 커스텀 KPI 카드 */
         .kpi-card {
             background-color: white;
             border-radius: 16px;
-            padding: 24px;
+            padding: 20px;
             box-shadow: 0px 4px 12px rgba(112, 144, 176, 0.08);
             border: 1px solid #E2E8F0;
-            border-top: 5px solid #3B82F6;
             height: 100%;
             display: flex;
             flex-direction: column;
@@ -105,12 +99,8 @@ st.markdown("""
         .kpi-title { color: #64748B; font-size: 0.9rem; font-weight: 600; margin-bottom: 8px; }
         .kpi-value { color: #1E293B; font-size: 2.2rem; font-weight: 800; letter-spacing: -1px; }
         .kpi-sub { color: #94A3B8; font-size: 0.85rem; margin-top: 4px; font-weight: 500; }
-        @media (max-width: 640px) {
-            .kpi-card { padding: 15px; }
-            .kpi-value { font-size: 1.6rem; }
-        }
 
-        /* 커스텀 리스트 행 (모바일 최적화) */
+        /* 커스텀 리스트 행 */
         .custom-row {
             background-color: white;
             border-bottom: 1px solid #F4F7FE;
@@ -119,41 +109,26 @@ st.markdown("""
             align-items: center;
             transition: all 0.2s ease;
             border-radius: 12px;
-            /* 모바일에서 텍스트 줄바꿈 방지 */
-            white-space: nowrap; 
+            margin-bottom: 5px; /* 항목별 간격 */
         }
         .custom-row:hover { background-color: #F4F7FE; transform: translateX(5px); }
         
         .custom-header {
             background-color: #F4F7FE;
             border-radius: 12px;
-            padding: 12px 10px;
+            padding: 15px 10px;
             font-weight: 600;
             color: #A3AED0;
-            font-size: 0.85rem;
+            font-size: 0.9rem;
             display: flex;
             align-items: center;
             margin-bottom: 10px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            white-space: nowrap;
         }
         
-        .row-item { 
-            flex: 1; text-align: center; font-size: 0.95rem; color: #2B3674; font-weight: 500;
-            overflow: hidden; text-overflow: ellipsis; /* 말줄임표 */
-        }
-        .row-item-left { 
-            flex: 1; text-align: left; padding-left: 20px; font-size: 0.95rem; color: #2B3674; font-weight: 500;
-            overflow: hidden; text-overflow: ellipsis;
-        }
-        
-        /* 모바일에서는 폰트 사이즈 축소 및 패딩 조정 */
-        @media (max-width: 640px) {
-            .custom-row, .custom-header { padding: 10px 5px; }
-            .row-item, .row-item-left { font-size: 0.8rem; }
-            .row-item-left { padding-left: 5px; }
-        }
+        .row-item { flex: 1; text-align: center; font-size: 0.95rem; color: #2B3674; font-weight: 500; }
+        .row-item-left { flex: 1; text-align: left; padding-left: 20px; font-size: 0.95rem; color: #2B3674; font-weight: 500; }
         
         /* 태그 */
         .badge { padding: 6px 12px; border-radius: 30px; font-size: 0.75rem; font-weight: 700; }
@@ -176,42 +151,62 @@ st.markdown("""
         .total-label { font-size: 0.9rem; color: #E9E3FF; margin-bottom: 5px; display: block; text-align: center; font-weight: 500;}
         .total-value { font-size: 1.5rem; font-weight: 700; color: white; display: block; text-align: center;}
         
+        /* 사이드바 */
         [data-testid="stSidebar"] {
             background-color: white;
             box-shadow: 4px 0px 20px rgba(112, 144, 176, 0.05);
             border-right: none;
         }
+        /* 사이드바 메뉴 폰트 확대 */
+        div.row-widget.stRadio > div[role="radiogroup"] > label p {
+            font-size: 1.15rem !important; 
+        }
 
-        /* 탭 버튼 스타일 */
+        /* [NEW] 탭 버튼 스타일 (잘림 방지 및 대형화) */
         div.row-widget.stRadio > div {
             background-color: white;
-            padding: 8px;
-            border-radius: 12px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            gap: 10px;
+            padding: 10px;
+            border-radius: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: center;
+            gap: 15px;
             border: 1px solid #E2E8F0;
+            margin-bottom: 20px;
+            margin-top: 10px;
         }
         div.row-widget.stRadio > div[role="radiogroup"] > label {
-            border-radius: 8px;
-            padding: 10px 20px;
+            flex: 1;
+            background-color: transparent;
+            border-radius: 15px;
+            padding: 15px 0;
             text-align: center;
-            font-weight: 600;
-            color: #64748B;
-            border: 1px solid transparent;
-            transition: all 0.2s;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: 2px solid transparent;
+            margin-right: 0 !important;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
         div.row-widget.stRadio > div[role="radiogroup"] > label:hover {
             background-color: #F8FAFC;
             color: #4318FF;
+            transform: translateY(-2px);
         }
         div.row-widget.stRadio > div[role="radiogroup"] > label[data-checked="true"] {
             background-color: #4318FF;
             color: white !important;
-            box-shadow: 0 4px 10px rgba(67, 24, 255, 0.3);
+            box-shadow: 0 8px 20px rgba(67, 24, 255, 0.3);
+            transform: translateY(-2px);
         }
         div.row-widget.stRadio > div[role="radiogroup"] > label p {
-            font-size: 1.1rem !important;
-            color: white !important;
+            font-size: 1.2rem !important;
+            font-weight: 700 !important;
+            margin: 0 !important;
+        }
+        div.row-widget.stRadio > div[role="radiogroup"] > label[data-checked="false"] p {
+            color: #A3AED0 !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -249,7 +244,6 @@ if not all_sheets:
         st.rerun()
     st.stop()
 
-# 시트 이름 매핑
 sheet_keys = list(all_sheets.keys())
 budget_sheet_name = next((s for s in sheet_keys if '기준' in s or 'Budget' in s), None)
 expense_sheet_name = next((s for s in sheet_keys if '지출' in s or 'Expense' in s), None)
@@ -283,7 +277,6 @@ with st.sidebar:
     st.caption("※ 시트 수정 후 1~5분 뒤 반영됩니다.")
     st.markdown("---")
     
-    # [QR 코드]
     try:
         import qrcode
         has_qrcode = True
@@ -292,8 +285,7 @@ with st.sidebar:
 
     with st.expander("📱 모바일 접속 QR"):
         if has_qrcode:
-            st.caption("아래 코드를 스캔하면 모바일 화면으로 접속됩니다.")
-            # [기본값 설정] 동권님의 실제 주소
+            st.caption("Scan to access")
             default_url = "https://my-budget-dashboard-ebrzrzbmslu8xh6dphqtin.streamlit.app/"
             app_url = st.text_input("URL", value=default_url)
             if app_url:
@@ -428,6 +420,7 @@ if menu == "💰 예산 관리":
         </div>
     """, unsafe_allow_html=True)
     
+    # [수정] Syntax Error Fix (들여쓰기 교정)
     if cat_main == "전체":
         tot_b = df_dash['예산'].sum()
         tot_s = df_dash['사용액'].sum()
@@ -664,6 +657,7 @@ elif menu == "⏰ 연장근무 관리":
         </div>
     """, unsafe_allow_html=True)
 
+    # [수정] 탭 버튼 - UI 고급화
     view_mode = st.radio("VIEW MODE", ["📊 통합 현황", "📈 주간 추이"], horizontal=True, label_visibility="collapsed")
     st.markdown("---")
 
@@ -699,13 +693,14 @@ elif menu == "⏰ 연장근무 관리":
         with c1:
             st.markdown("##### 🏢 팀별 근무 유형 비교")
             
+            # 차트용 팀 목록 확보
             chart_teams = master_teams[1:] if ot_team_opt == "전체 팀" else [ot_team_opt]
             df_agg = df_filtered.groupby('팀명')[valid_num_cols].sum().reset_index()
             df_agg = df_agg.set_index('팀명').reindex(chart_teams).fillna(0).reset_index()
             
             df_long = df_agg.melt(id_vars='팀명', var_name='유형', value_name='시간')
             
-            # [수정] 가로 누적 막대 & 색상 통일
+            # [수정] 가로 누적 막대 (Horizontal Stacked Bar)
             color_map = {
                 '연장시간': '#3B82F6', '연장근로': '#3B82F6', # Blue
                 '야근시간': '#EF4444', # Red
@@ -718,6 +713,7 @@ elif menu == "⏰ 연장근무 관리":
                          color_discrete_map=color_map,
                          text_auto='.0f')
             
+            # [수정] 배경 화이트 & 텍스트 화이트
             fig.update_traces(textposition='auto', textfont_size=12, textfont_color='white')
             fig.update_layout(xaxis_title=None, yaxis_title=None, height=400, 
                               paper_bgcolor='white', plot_bgcolor='white',
@@ -744,13 +740,13 @@ elif menu == "⏰ 연장근무 관리":
     elif view_mode == "📈 주간 추이":
         st.subheader("주간 진행 현황")
         
-        # [수정] 사이드바 필터와 자동 연동 (별도 선택창 삭제)
         if '주차' in df_filtered.columns:
             c_w1, c_w2 = st.columns([1, 1])
             with c_w1:
                 st.markdown("##### 📊 주차별 합계")
                 week_chart = df_filtered.groupby(['주차', '팀명'])['총근무'].sum().reset_index()
                 if not week_chart.empty:
+                    # [수정] 배경 화이트
                     fig3 = px.bar(week_chart, x='주차', y='총근무', color='팀명', barmode='group', color_discrete_sequence=px.colors.qualitative.Prism)
                     fig3.update_traces(textfont_color='white')
                     fig3.update_layout(height=400, paper_bgcolor='white', plot_bgcolor='white')
