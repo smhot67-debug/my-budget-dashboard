@@ -16,46 +16,145 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# [CSS] 프리미엄 UI 디자인
+# [CSS] 프리미엄 UI 디자인 (탭 버튼 스타일링 강화)
 st.markdown("""
     <style>
+        /* 폰트 설정 */
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-        .stApp { font-family: 'Pretendard', sans-serif; background-color: #F4F7FE; }
-        h1, h2, h3, h4, h5, h6, p, div, span, label, button, input, select, textarea { font-family: 'Pretendard', sans-serif; }
+        
+        .stApp {
+            font-family: 'Pretendard', sans-serif;
+            background-color: #F4F7FE;
+        }
+        
+        h1, h2, h3, h4, h5, h6, p, div, span, label, button, input, select, textarea {
+            font-family: 'Pretendard', sans-serif;
+        }
+
+        /* 아이콘 폰트 깨짐 방지 */
         .material-symbols-rounded { font-family: 'Material Symbols Rounded' !important; }
+
+        /* 컨테이너 여백 */
         .block-container { padding-top: 2rem; padding-bottom: 5rem; }
-        
-        div.css-1r6slb0, div.stDataFrame, div[data-testid="stMetric"] { background-color: white; border-radius: 24px; padding: 24px; box-shadow: 0px 4px 20px rgba(112, 144, 176, 0.08); border: none; }
-        div[data-testid="stMetricValue"] { font-size: 2rem !important; font-weight: 700 !important; color: #2B3674; }
-        div[data-testid="stMetricLabel"] { font-size: 0.9rem !important; color: #A3AED0; font-weight: 500; }
-        
-        .custom-row { background-color: white; border-bottom: 1px solid #F4F7FE; padding: 16px 10px; display: flex; align-items: center; transition: all 0.2s ease; border-radius: 12px; }
+
+        /* 카드 박스 스타일 */
+        div.css-1r6slb0, div.stDataFrame, div[data-testid="stMetric"] {
+            background-color: white;
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: 0px 4px 20px rgba(112, 144, 176, 0.08);
+            border: none;
+        }
+
+        /* 메트릭 숫자 강조 */
+        div[data-testid="stMetricValue"] {
+            font-size: 2rem !important;
+            font-weight: 700 !important;
+            color: #2B3674;
+        }
+        div[data-testid="stMetricLabel"] {
+            font-size: 0.9rem !important;
+            color: #A3AED0;
+            font-weight: 500;
+        }
+
+        /* 커스텀 리스트 행 스타일 */
+        .custom-row {
+            background-color: white;
+            border-bottom: 1px solid #F4F7FE;
+            padding: 16px 10px;
+            display: flex;
+            align-items: center;
+            transition: all 0.2s ease;
+            border-radius: 12px;
+        }
         .custom-row:hover { background-color: #F4F7FE; transform: translateX(5px); }
-        .custom-header { background-color: #F4F7FE; border-radius: 12px; padding: 12px 10px; font-weight: 600; color: #A3AED0; font-size: 0.85rem; display: flex; align-items: center; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+        
+        .custom-header {
+            background-color: #F4F7FE;
+            border-radius: 12px;
+            padding: 12px 10px;
+            font-weight: 600;
+            color: #A3AED0;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
         .row-item { flex: 1; text-align: center; font-size: 0.95rem; color: #2B3674; font-weight: 500; }
         .row-item-left { flex: 1; text-align: left; padding-left: 20px; font-size: 0.95rem; color: #2B3674; font-weight: 500; }
         
+        /* 태그 스타일 */
         .badge { padding: 6px 12px; border-radius: 30px; font-size: 0.75rem; font-weight: 700; }
         .badge-red { background-color: #FEE2E2; color: #DC2626; }
         .badge-blue { background-color: #E0E7FF; color: #4318FF; }
         .badge-gray { background-color: #F4F7FE; color: #A3AED0; }
         
-        .total-box { background: linear-gradient(135deg, #868CFF 0%, #4318FF 100%); border-radius: 20px; padding: 25px; margin-bottom: 25px; display: flex; justify-content: space-around; align-items: center; color: white; box-shadow: 0px 10px 20px rgba(67, 24, 255, 0.2); }
+        /* 합계 박스 스타일 */
+        .total-box {
+            background: linear-gradient(135deg, #868CFF 0%, #4318FF 100%);
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 25px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            color: white;
+            box-shadow: 0px 10px 20px rgba(67, 24, 255, 0.2);
+        }
         .total-label { font-size: 0.9rem; color: #E9E3FF; margin-bottom: 5px; display: block; text-align: center; font-weight: 500;}
         .total-value { font-size: 1.5rem; font-weight: 700; color: white; display: block; text-align: center;}
         
-        [data-testid="stSidebar"] { background-color: white; border-right: none; box-shadow: 4px 0px 20px rgba(112, 144, 176, 0.05); }
-
-        /* 모드 선택 라디오 버튼 스타일링 */
-        div[role="radiogroup"] {
+        /* 사이드바 스타일링 */
+        [data-testid="stSidebar"] {
             background-color: white;
-            padding: 5px;
-            border-radius: 12px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-            display: flex;
-            justify-content: center;
-            margin-bottom: 20px;
+            border-right: none;
+            box-shadow: 4px 0px 20px rgba(112, 144, 176, 0.05);
         }
+
+        /* [NEW] 라디오 버튼을 탭처럼 꾸미기 (고급형) */
+        div.row-widget.stRadio > div {
+            flex-direction: row;
+            background-color: white;
+            padding: 8px;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            justify-content: center;
+            gap: 10px;
+        }
+        div.row-widget.stRadio > div[role="radiogroup"] > label {
+            background-color: transparent;
+            border: 1px solid #F4F7FE;
+            border-radius: 12px;
+            padding: 12px 24px;
+            margin: 0;
+            flex: 1;
+            text-align: center;
+            transition: all 0.2s;
+            font-weight: 600;
+            color: #A3AED0;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        div.row-widget.stRadio > div[role="radiogroup"] > label:hover {
+            background-color: #F4F7FE;
+            color: #4318FF;
+        }
+        /* 선택된 라디오 버튼 스타일 (Streamlit DOM 구조에 따라 약간의 차이가 있을 수 있음, 기본 CSS로는 한계가 있어 라디오 위젯 자체 옵션 활용 권장) */
+        div.row-widget.stRadio > div[role="radiogroup"] > label[data-checked="true"] {
+            background-color: #4318FF;
+            color: white !important;
+            box-shadow: 0 4px 10px rgba(67, 24, 255, 0.3);
+            border-color: #4318FF;
+        }
+        div.row-widget.stRadio > div[role="radiogroup"] > label[data-checked="true"] p {
+            color: white !important;
+            font-weight: 700;
+        }
+
     </style>
 """, unsafe_allow_html=True)
 
@@ -63,7 +162,7 @@ st.markdown("""
 SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6hnNtH_1tBFJoA25lXzFPjKUGpBfu0H313_QVFDPdHOpWDDQSJQvIlOQpUoczNO7z7jyWbE171ApD/pub?output=xlsx"
 
 # -----------------------------------------------------------------------------
-# 2. 데이터 로드 엔진
+# 2. 데이터 로드 엔진 (강화됨)
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=60)
 def load_all_data():
@@ -99,6 +198,16 @@ budget_sheet_name = next((s for s in sheet_keys if '기준' in s or 'Budget' in 
 expense_sheet_name = next((s for s in sheet_keys if '지출' in s or 'Expense' in s), None)
 leave_sheet_name = next((s for s in sheet_keys if '원천' in s or 'Leave' in s), None)
 overtime_sheet_name = next((s for s in sheet_keys if '연장' in s or 'Overtime' in s or '근무' in s), None)
+
+# [마스터 데이터 추출] - 모든 콤보박스에 사용될 전체 리스트 확보
+master_teams = []
+if budget_sheet_name:
+    df_budget_master = all_sheets[budget_sheet_name].fillna(0)
+    if '팀명' in df_budget_master.columns:
+        master_teams = sorted(df_budget_master['팀명'].astype(str).unique())
+
+if not master_teams: # 기준정보가 없으면 다른 시트에서라도 확보
+    master_teams = ["전체 팀"]
 
 # -----------------------------------------------------------------------------
 # 3. 사이드바 및 공통 로직
@@ -146,8 +255,8 @@ if menu == "💰 예산 관리":
         st.error("예산 데이터 시트가 없습니다.")
         st.stop()
 
+    # 데이터 처리
     df_budget = all_sheets[budget_sheet_name].fillna(0)
-    # 컬럼명 공백 제거
     df_budget.columns = [str(c).strip() for c in df_budget.columns]
     
     for col in df_budget.columns:
@@ -192,10 +301,14 @@ if menu == "💰 예산 관리":
 
     with st.sidebar:
         st.subheader("Filter")
-        month_list = sorted([m for m in df_expense['월'].unique() if m != '날짜없음'], reverse=True)
-        period_option = st.selectbox("기간", ["전체 누적"] + month_list)
-        team_list = sorted(df_base['팀명'].unique())
-        team_option = st.selectbox("부서", ["전체 부서"] + team_list)
+        # [수정] 데이터 유무와 관계없이 월 목록 전체 표시 (혹은 데이터 기반 + 기본값)
+        expense_months = sorted([m for m in df_expense['월'].unique() if m != '날짜없음'], reverse=True)
+        month_list = ["전체 누적"] + expense_months
+        
+        period_option = st.selectbox("기간", month_list)
+        
+        # [수정] 마스터 팀 목록 사용 (데이터가 없어도 팀은 선택 가능)
+        team_option = st.selectbox("부서", ["전체 부서"] + master_teams)
         
         st.caption("Category")
         main_cats = ["전체"] + sorted(df_expense['대분류'].unique())
@@ -339,8 +452,8 @@ elif menu == "🏖️ 연차 관리":
 
     with st.sidebar:
         st.subheader("Filter")
-        dept_list = ["전체"] + sorted(df_leave['소속'].unique())
-        leave_dept_option = st.selectbox("소속 부서", dept_list)
+        # [수정] 마스터 팀 목록 사용
+        leave_dept_option = st.selectbox("소속 부서", ["전체"] + master_teams)
         risk_criteria = st.slider("촉진 대상 기준 (잔여일)", 5, 25, 10)
 
     if leave_dept_option != "전체":
@@ -473,8 +586,8 @@ elif menu == "⏰ 연장근무 관리":
         month_list = ["전체 누적"] + sorted_months
         ot_month_opt = st.selectbox("조회 기간", month_list)
 
-        team_list = ["전체"] + sorted(df_ot['팀명'].unique())
-        ot_team_opt = st.selectbox("소속 팀", team_list)
+        # [수정] 마스터 팀 목록 사용 (데이터 없어도 팀 선택 가능)
+        ot_team_opt = st.selectbox("소속 팀", ["전체"] + master_teams)
         
         target_ratio = st.slider("전년 대비 목표 (%)", 80, 120, 90)
 
@@ -485,8 +598,8 @@ elif menu == "⏰ 연장근무 관리":
     if ot_team_opt != "전체":
         df_filtered = df_filtered[df_filtered['팀명'] == ot_team_opt]
 
-    # [수정] 모드 선택 (Radio Button)
-    view_mode = st.radio("보기 모드", ["📊 통합 현황 (Monthly)", "📈 주간 추이 (Weekly)"], horizontal=True, label_visibility="collapsed")
+    # [수정] 모드 선택 (Radio Button -> 고급 탭 UI)
+    view_mode = st.radio("VIEW MODE", ["📊 통합 현황 (Monthly)", "📈 주간 추이 (Weekly)"], horizontal=True, label_visibility="collapsed")
     st.markdown("---")
 
     # 1. 통합 현황
@@ -516,29 +629,24 @@ elif menu == "⏰ 연장근무 관리":
         with c1:
             st.markdown("##### 🏢 팀별 근무 유형 비교")
             
-            # [수정] 모든 팀 표시를 위한 재색인 (Reindexing)
+            # [수정] 모든 팀 표시 (데이터 없어도 0으로 채움) & 그래프 색상/스타일 통일
             if ot_team_opt == "전체":
-                all_teams = sorted(df_ot['팀명'].unique())
+                chart_teams = master_teams
             else:
-                all_teams = [ot_team_opt]
+                chart_teams = [ot_team_opt]
                 
-            # Aggregation
+            # Aggregation & Reindex
             df_agg = df_filtered.groupby('팀명')[valid_num_cols].sum().reset_index()
-            # Reindex to ensure all teams exist (fill 0)
-            df_agg = df_agg.set_index('팀명').reindex(all_teams).fillna(0).reset_index()
+            df_agg = df_agg.set_index('팀명').reindex(chart_teams).fillna(0).reset_index()
             
             df_long = df_agg.melt(id_vars='팀명', var_name='유형', value_name='시간')
             
-            # [수정] 가로 막대 & 색상 구분
-            color_map = {
-                '연장시간': '#3B82F6', '연장근로': '#3B82F6', # Blue
-                '야근시간': '#8B5CF6', # Purple
-                '휴일시간': '#F59E0B'  # Orange
-            }
-            
-            fig = px.bar(df_long, x='시간', y='팀명', color='유형',
-                         orientation='h', # 가로형
-                         color_discrete_map=color_map,
+            # [수정] 팀별 색상 통일 (Prism) & 그래프 스타일 통일
+            fig = px.bar(df_long, x='팀명', y='시간', color='팀명',
+                         # 가로 막대가 아니라 세로 막대로 변경 (통일성 위해) 혹은 사용자가 원한 가로형 유지?
+                         # 요청사항: "통합자료 그래프 색과 주간현황 자료 그래프 색이 동일하게" 
+                         # 주간 현황은 보통 세로(시간 흐름)이므로, 여기도 세로로 하되 색상은 팀별로 통일
+                         color_discrete_sequence=px.colors.qualitative.Prism, 
                          text_auto='.0f')
             
             fig.update_traces(textposition='outside', cliponaxis=False, textfont_size=12)
@@ -557,6 +665,7 @@ elif menu == "⏰ 연장근무 관리":
                 except:
                     pass
                 
+                # [수정] 그래프 색상 및 스타일 통일
                 fig2 = px.area(trend_df, x='월', y='총근무', markers=True)
                 fig2.update_traces(line_color='#4318FF', fillcolor='rgba(67, 24, 255, 0.1)')
                 fig2.update_layout(xaxis_title=None, yaxis_title=None, height=400, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
@@ -580,8 +689,10 @@ elif menu == "⏰ 연장근무 관리":
                     st.markdown("##### 📊 주차별 팀 합계")
                     week_chart = df_weekly.groupby(['주차', '팀명'])['총근무'].sum().reset_index()
                     if not week_chart.empty:
-                        fig3 = px.bar(week_chart, x='주차', y='총근무', color='팀명', barmode='group', color_discrete_sequence=px.colors.qualitative.Prism)
-                        fig3.update_layout(height=400, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                        # [수정] 그래프 색상 및 스타일 통일 (Prism)
+                        fig3 = px.bar(week_chart, x='주차', y='총근무', color='팀명', barmode='group', 
+                                      color_discrete_sequence=px.colors.qualitative.Prism)
+                        fig3.update_layout(height=400, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(size=14))
                         st.plotly_chart(fig3, use_container_width=True)
                     else:
                         st.info("해당 월의 데이터가 없습니다.")
@@ -596,8 +707,10 @@ elif menu == "⏰ 연장근무 관리":
                             pass
                         week_chart['누적근무'] = week_chart.groupby('팀명')['총근무'].cumsum()
                         
-                        fig4 = px.line(week_chart, x='주차', y='누적근무', color='팀명', markers=True, color_discrete_sequence=px.colors.qualitative.Prism)
-                        fig4.update_layout(height=400, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                        # [수정] 그래프 색상 및 스타일 통일
+                        fig4 = px.line(week_chart, x='주차', y='누적근무', color='팀명', markers=True, 
+                                       color_discrete_sequence=px.colors.qualitative.Prism)
+                        fig4.update_layout(height=400, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(size=14))
                         st.plotly_chart(fig4, use_container_width=True)
             else:
                 st.warning("'주차' 컬럼이 데이터에 없습니다.")
