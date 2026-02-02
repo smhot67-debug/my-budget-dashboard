@@ -242,6 +242,7 @@ if menu == "💰 예산 관리":
                         </div>
                         <div style="display:flex; justify-content:space-between; font-size:0.85rem; color:#64748b;">
                             <span>예산: {row['총예산']:,.0f}</span>
+                            <span>사용: {row['사용액']:,.0f}</span>
                             <span>잔액: <strong>{row['잔액']:,.0f}</strong></span>
                         </div>
                     </div>
