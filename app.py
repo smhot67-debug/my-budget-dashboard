@@ -310,7 +310,10 @@ if menu == "💰 예산 관리":
                         </div>
                         <div style="display:flex; justify-content:space-between; font-size:0.85rem; color:#A3AED0; font-weight:500;">
                             <span>예산: {row['총예산']:,.0f}</span>
-                            <span>잔액: <strong style="color:#2B3674;">{row['잔액']:,.0f}</strong></span>
+                            <span>사용: <strong style="color:#2B3674;">{row['사용액']:,.0f}</strong></span>
+                        </div>
+                        <div style="text-align:right; font-size:0.9rem; color:#2B3674; margin-top:5px;">
+                             잔액: <strong>{row['잔액']:,.0f}</strong>
                         </div>
                     </div>
                 """, unsafe_allow_html=True)
@@ -493,12 +496,9 @@ elif menu == "⏰ 연장근무 관리":
     
     df_ot['총근무'] = df_ot[valid_num_cols].sum(axis=1)
 
-    tab_dashboard, tab_weekly = st.tabs(["📊 통합 현황 (Monthly)", "📈 주간 추이 (Weekly)"])
-
-    # 1. 통합 현황
-    with tab_dashboard:
-        st.subheader("통합 연장근무 현황")
-        
+    # [필터 사이드바 이동]
+    with st.sidebar:
+        st.subheader("연장근무 필터")
         unique_months = [m for m in df_ot['월'].unique() if m != '0' and m != 'Unknown']
         try:
             sorted_months = sorted(unique_months, key=lambda x: int(re.sub(r'\D', '', str(x))) if re.sub(r'\D', '', str(x)) else 0)
@@ -506,15 +506,28 @@ elif menu == "⏰ 연장근무 관리":
             sorted_months = sorted(unique_months)
 
         month_list = ["전체 누적"] + sorted_months
+        ot_month_opt = st.selectbox("조회 기간", month_list)
+
+        team_list = ["전체"] + sorted(df_ot['팀명'].unique())
+        ot_team_opt = st.selectbox("소속 팀", team_list)
         
-        c_filter, c_ratio = st.columns([2, 4])
-        with c_filter:
-            ot_month_opt = st.selectbox("조회 기간", month_list)
+        # [목표 설정 추가]
+        target_ratio = st.slider("전년 대비 목표 (%)", 80, 120, 90)
+
+    # 데이터 필터링
+    df_filtered = df_ot.copy()
+    if ot_month_opt != "전체 누적":
+        df_filtered = df_filtered[df_filtered['월'] == ot_month_opt]
+    if ot_team_opt != "전체":
+        df_filtered = df_filtered[df_filtered['팀명'] == ot_team_opt]
+
+    tab_dashboard, tab_weekly = st.tabs(["📊 통합 현황 (Monthly)", "📈 주간 추이 (Weekly)"])
+
+    # 1. 통합 현황
+    with tab_dashboard:
+        st.subheader("통합 연장근무 현황")
         
-        df_filtered = df_ot.copy()
-        if ot_month_opt != "전체 누적":
-            df_filtered = df_filtered[df_filtered['월'] == ot_month_opt]
-        
+        # KPI Cards
         total_sum = df_filtered['총근무'].sum()
         ext_sum = df_filtered[[c for c in df_ot.columns if '연장' in c]].sum().sum()
         night_sum = df_filtered[[c for c in df_ot.columns if '야근' in c]].sum().sum()
@@ -524,9 +537,12 @@ elif menu == "⏰ 연장근무 관리":
         night_ratio = (night_sum / total_sum * 100) if total_sum > 0 else 0
         hol_ratio = (hol_sum / total_sum * 100) if total_sum > 0 else 0
 
+        # [목표 표시 추가]
+        target_val = total_sum * (target_ratio / 100)
+
         k1, k2, k3, k4 = st.columns(4)
         k1.metric("총 근무시간", f"{total_sum:,.1f}h")
-        k2.metric("연장 근로", f"{ext_sum:,.1f}h", f"{ext_ratio:.1f}%", delta_color="off")
+        k2.metric("목표 (전년 대비)", f"{target_val:,.1f}h", f"{target_ratio}%", delta_color="off")
         k3.metric("야간 근로", f"{night_sum:,.1f}h", f"{night_ratio:.1f}%", delta_color="off")
         k4.metric("휴일 근로", f"{hol_sum:,.1f}h", f"{hol_ratio:.1f}%", delta_color="off")
 
@@ -539,10 +555,13 @@ elif menu == "⏰ 연장근무 관리":
                 df_chart = df_filtered.groupby('팀명')[valid_num_cols].sum().reset_index()
                 df_long = df_chart.melt(id_vars='팀명', var_name='유형', value_name='시간')
                 
-                # Soft UI Colors: Indigo, Pink, Light Blue
-                fig = px.bar(df_long, x='팀명', y='시간', color='유형',
-                             color_discrete_map={'연장시간':'#4318FF', '연장근로':'#4318FF', '야근시간':'#FF5630', '휴일시간':'#33C5FF'},
+                # [수정] 팀별 색상 통일 (color='팀명')
+                fig = px.bar(df_long, x='팀명', y='시간', color='팀명',
+                             color_discrete_sequence=px.colors.qualitative.Prism, # 예산 탭과 동일
                              text_auto='.0f')
+                
+                # [수정] 텍스트 잘 보이게 조정
+                fig.update_traces(textposition='outside', cliponaxis=False)
                 fig.update_layout(xaxis_title=None, yaxis_title=None, height=350, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                 st.plotly_chart(fig, use_container_width=True)
             else:
@@ -558,7 +577,6 @@ elif menu == "⏰ 연장근무 관리":
                 except:
                     pass
                 
-                # [수정완료] fill_color -> fillcolor (오류 해결)
                 fig2 = px.area(trend_df, x='월', y='총근무', markers=True)
                 fig2.update_traces(line_color='#4318FF', fillcolor='rgba(67, 24, 255, 0.1)')
                 fig2.update_layout(xaxis_title=None, yaxis_title=None, height=350, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
@@ -571,7 +589,8 @@ elif menu == "⏰ 연장근무 관리":
         st.subheader("주간 진행 현황 (Weekly)")
         
         if sorted_months:
-            target_month = st.selectbox("월 선택", sorted_months, key="weekly_month")
+            # 주간 추이에서도 필터 사용 가능하게 (월 선택은 사이드바와 별도로 유지하거나 연동)
+            target_month = st.selectbox("월 선택 (주간용)", sorted_months, key="weekly_month")
             df_weekly = df_ot[df_ot['월'] == target_month]
             
             if '주차' in df_weekly.columns:
