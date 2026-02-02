@@ -58,7 +58,7 @@ st.markdown("""
             font-weight: 500;
         }
 
-        /* [NEW] 모던 헤더 디자인 (이미지 없이 CSS로 구현) */
+        /* [NEW] 모던 헤더 디자인 */
         .modern-header {
             background: white;
             padding: 25px 30px;
@@ -83,6 +83,22 @@ st.markdown("""
             font-size: 1rem;
             font-weight: 500;
         }
+
+        /* 커스텀 KPI 카드 (Shiftee Style) - 색상 강조 */
+        .kpi-card {
+            background-color: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0px 4px 12px rgba(112, 144, 176, 0.08);
+            border: 1px solid #E2E8F0;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .kpi-title { color: #64748B; font-size: 0.9rem; font-weight: 600; margin-bottom: 8px; }
+        .kpi-value { color: #1E293B; font-size: 2.2rem; font-weight: 800; letter-spacing: -1px; }
+        .kpi-sub { color: #94A3B8; font-size: 0.85rem; margin-top: 4px; font-weight: 500; }
 
         /* 커스텀 리스트 행 */
         .custom-row {
@@ -141,31 +157,36 @@ st.markdown("""
             border-right: none;
         }
 
-        /* [수정] 메인 메뉴 스타일 (폰트 확대 & 간격 조정) */
+        /* 탭 버튼 스타일 커스텀 */
         div.row-widget.stRadio > div {
-            gap: 15px; /* 버튼 사이 간격 */
+            background-color: white;
+            padding: 8px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            gap: 10px;
+            border: 1px solid #E2E8F0;
         }
         div.row-widget.stRadio > div[role="radiogroup"] > label {
-            border-radius: 12px;
-            padding: 15px 20px; /* 내부 여백 확대 */
-            box-shadow: 0 2px 5px rgba(0,0,0,0.02);
-            border: 1px solid #F4F7FE;
-            background-color: white;
+            border-radius: 8px;
+            padding: 10px 20px;
+            text-align: center;
+            font-weight: 600;
+            color: #64748B;
+            border: 1px solid transparent;
             transition: all 0.2s;
         }
         div.row-widget.stRadio > div[role="radiogroup"] > label:hover {
             background-color: #F8FAFC;
             color: #4318FF;
-            transform: translateY(-2px);
         }
         div.row-widget.stRadio > div[role="radiogroup"] > label[data-checked="true"] {
             background-color: #4318FF;
             color: white !important;
-            box-shadow: 0 8px 20px rgba(67, 24, 255, 0.3);
+            box-shadow: 0 4px 10px rgba(67, 24, 255, 0.3);
         }
         div.row-widget.stRadio > div[role="radiogroup"] > label p {
-            font-size: 1.2rem !important; /* 폰트 +2px 효과 */
-            font-weight: 600;
+            font-size: 1.1rem !important;
+            color: white !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -210,7 +231,7 @@ expense_sheet_name = next((s for s in sheet_keys if '지출' in s or 'Expense' i
 leave_sheet_name = next((s for s in sheet_keys if '원천' in s or 'Leave' in s), None)
 overtime_sheet_name = next((s for s in sheet_keys if '연장' in s or 'Overtime' in s or '근무' in s), None)
 
-# [마스터 데이터 생성]
+# [마스터 데이터]
 master_teams = ["전체 팀"]
 if budget_sheet_name:
     df_bm = all_sheets[budget_sheet_name].fillna(0)
@@ -310,6 +331,7 @@ if menu == "💰 예산 관리":
             sub_cats += sorted(df_expense[df_expense['대분류'] == cat_main]['소분류'].astype(str).unique())
         cat_sub = st.selectbox("소분류", sub_cats)
 
+    # 월별 예산 및 이월 계산
     monthly_exp = df_expense.groupby(['팀명', '월'])['금액'].sum().reset_index()
     dashboard_rows = []
     
@@ -402,7 +424,6 @@ if menu == "💰 예산 관리":
         st.subheader("📊 예산 집행률")
         if tot_s > 0:
             fig = px.pie(df_dash, values='사용액', names='팀명', hole=0.6, color_discrete_sequence=px.colors.qualitative.Prism)
-            # [수정] 차트 배경 화이트
             fig.update_layout(showlegend=True, height=400, margin=dict(t=20, b=20, l=20, r=20), paper_bgcolor='white', plot_bgcolor='white')
             fig.add_annotation(text=f"Total\n{tot_s/10000:,.0f}만", x=0.5, y=0.5, font_size=20, showarrow=False, font_weight="bold", font_color="#2B3674")
             st.plotly_chart(fig, use_container_width=True)
@@ -512,7 +533,6 @@ elif menu == "🏖️ 연차 관리":
         dept_sum = df_leave.groupby('소속').agg({'사용일수':'sum', '합계':'sum'}).reset_index()
         dept_sum['소진율'] = (dept_sum['사용일수'] / dept_sum['합계'] * 100).fillna(0)
         fig = px.bar(dept_sum, x='소속', y='소진율', text=dept_sum['소진율'].apply(lambda x: f"{x:.1f}%"), color='소진율', color_continuous_scale='Bluyl')
-        # [수정] 차트 배경 화이트
         fig.update_traces(textfont_color='white', textposition='auto')
         fig.update_layout(xaxis_title=None, yaxis_title="소진율(%)", height=450, paper_bgcolor='white', plot_bgcolor='white')
         st.plotly_chart(fig, use_container_width=True)
@@ -604,7 +624,7 @@ elif menu == "⏰ 연장근무 관리":
         ot_team_opt = st.selectbox("소속 팀", master_teams)
         target_ratio = st.slider("전년 대비 목표 (%)", 80, 120, 90)
 
-    # 데이터 필터링 (주간 추이도 사이드바 필터 연동)
+    # 데이터 필터링
     df_filtered = df_ot.copy()
     if ot_month_opt != "전체 누적":
         df_filtered = df_filtered[df_filtered['월'] == ot_month_opt]
@@ -619,7 +639,7 @@ elif menu == "⏰ 연장근무 관리":
         </div>
     """, unsafe_allow_html=True)
 
-    # 탭 메뉴
+    # [수정] 고급 탭 UI (Segmented Control)
     view_mode = st.radio("VIEW MODE", ["📊 통합 현황", "📈 주간 추이"], horizontal=True, label_visibility="collapsed")
     st.markdown("---")
 
@@ -629,26 +649,26 @@ elif menu == "⏰ 연장근무 관리":
     night_sum = df_filtered[[c for c in df_ot.columns if '야근' in c]].sum().sum()
     hol_sum = df_filtered[[c for c in df_ot.columns if '휴일' in c]].sum().sum()
     
+    ext_ratio = (ext_sum / total_sum * 100) if total_sum > 0 else 0
+    night_ratio = (night_sum / total_sum * 100) if total_sum > 0 else 0
+    hol_ratio = (hol_sum / total_sum * 100) if total_sum > 0 else 0
+
+    target_val = total_sum * (target_ratio / 100)
+
     # 1. 통합 현황
     if view_mode == "📊 통합 현황":
         st.subheader("통합 연장근무 현황")
         
-        ext_ratio = (ext_sum / total_sum * 100) if total_sum > 0 else 0
-        night_ratio = (night_sum / total_sum * 100) if total_sum > 0 else 0
-        hol_ratio = (hol_sum / total_sum * 100) if total_sum > 0 else 0
-
-        target_val = total_sum * (target_ratio / 100)
-
-        # KPI Cards (Shiftee Style)
+        # [수정] KPI 카드 컬러 복구 (Shiftee Style)
         k1, k2, k3, k4 = st.columns(4)
         with k1:
-            st.markdown(f"""<div class="kpi-card" style="border-top-color: #3B82F6;"><div class="kpi-title">총 근무시간</div><div class="kpi-value">{total_sum:,.1f}h</div><div class="kpi-sub">Total Overtime</div></div>""", unsafe_allow_html=True)
+            st.markdown(f"""<div class="kpi-card" style="border-top-color: #4F46E5;"><div class="kpi-title">총 근무시간</div><div class="kpi-value">{total_sum:,.1f}h</div><div class="kpi-sub">Total Overtime</div></div>""", unsafe_allow_html=True)
         with k2:
-            st.markdown(f"""<div class="kpi-card" style="border-top-color: #4318FF;"><div class="kpi-title">연장 근로</div><div class="kpi-value">{ext_sum:,.1f}h</div><div class="kpi-sub">{ext_ratio:.1f}% of Total</div></div>""", unsafe_allow_html=True)
+            st.markdown(f"""<div class="kpi-card" style="border-top-color: #3B82F6;"><div class="kpi-title">연장 근로</div><div class="kpi-value">{ext_sum:,.1f}h</div><div class="kpi-sub">{ext_ratio:.1f}% (Blue)</div></div>""", unsafe_allow_html=True)
         with k3:
-            st.markdown(f"""<div class="kpi-card" style="border-top-color: #EF4444;"><div class="kpi-title">야간 근로</div><div class="kpi-value">{night_sum:,.1f}h</div><div class="kpi-sub">{night_ratio:.1f}% of Total</div></div>""", unsafe_allow_html=True)
+            st.markdown(f"""<div class="kpi-card" style="border-top-color: #EF4444;"><div class="kpi-title">야간 근로</div><div class="kpi-value">{night_sum:,.1f}h</div><div class="kpi-sub">{night_ratio:.1f}% (Red)</div></div>""", unsafe_allow_html=True)
         with k4:
-            st.markdown(f"""<div class="kpi-card" style="border-top-color: #0EA5E9;"><div class="kpi-title">휴일 근로</div><div class="kpi-value">{hol_sum:,.1f}h</div><div class="kpi-sub">{hol_ratio:.1f}% of Total</div></div>""", unsafe_allow_html=True)
+            st.markdown(f"""<div class="kpi-card" style="border-top-color: #0EA5E9;"><div class="kpi-title">휴일 근로</div><div class="kpi-value">{hol_sum:,.1f}h</div><div class="kpi-sub">{hol_ratio:.1f}% (Sky)</div></div>""", unsafe_allow_html=True)
 
         st.markdown("---")
         
@@ -656,7 +676,6 @@ elif menu == "⏰ 연장근무 관리":
         with c1:
             st.markdown("##### 🏢 팀별 근무 유형 비교")
             
-            # 차트용 팀 목록 확보
             chart_teams = master_teams[1:] if ot_team_opt == "전체 팀" else [ot_team_opt]
             df_agg = df_filtered.groupby('팀명')[valid_num_cols].sum().reset_index()
             df_agg = df_agg.set_index('팀명').reindex(chart_teams).fillna(0).reset_index()
@@ -665,7 +684,7 @@ elif menu == "⏰ 연장근무 관리":
             
             # [수정] 가로 누적 막대 & 색상 통일 (파랑/빨강/하늘)
             color_map = {
-                '연장시간': '#4318FF', '연장근로': '#4318FF', # Blue
+                '연장시간': '#3B82F6', '연장근로': '#3B82F6', # Blue
                 '야근시간': '#EF4444', # Red
                 '휴일시간': '#0EA5E9'  # Sky
             }
@@ -676,7 +695,6 @@ elif menu == "⏰ 연장근무 관리":
                          color_discrete_map=color_map,
                          text_auto='.0f')
             
-            # [수정] 텍스트 화이트, 배경 화이트
             fig.update_traces(textposition='auto', textfont_size=12, textfont_color='white')
             fig.update_layout(xaxis_title=None, yaxis_title=None, height=400, 
                               paper_bgcolor='white', plot_bgcolor='white',
@@ -694,7 +712,6 @@ elif menu == "⏰ 연장근무 관리":
                 
                 fig2 = px.area(trend_df, x='월', y='총근무', markers=True)
                 fig2.update_traces(line_color='#4318FF', fillcolor='rgba(67, 24, 255, 0.1)')
-                # [수정] 배경 화이트
                 fig2.update_layout(xaxis_title=None, yaxis_title=None, height=400, paper_bgcolor='white', plot_bgcolor='white')
                 st.plotly_chart(fig2, use_container_width=True)
             else:
@@ -704,8 +721,7 @@ elif menu == "⏰ 연장근무 관리":
     elif view_mode == "📈 주간 추이":
         st.subheader("주간 진행 현황")
         
-        # [수정] 별도 월 선택 제거하고 사이드바와 연동
-        # df_filtered는 이미 사이드바 필터가 적용된 상태임
+        # [수정] 사이드바 필터와 자동 연동 (별도 선택창 삭제)
         if '주차' in df_filtered.columns:
             c_w1, c_w2 = st.columns([1, 1])
             with c_w1:
@@ -713,7 +729,6 @@ elif menu == "⏰ 연장근무 관리":
                 week_chart = df_filtered.groupby(['주차', '팀명'])['총근무'].sum().reset_index()
                 if not week_chart.empty:
                     fig3 = px.bar(week_chart, x='주차', y='총근무', color='팀명', barmode='group', color_discrete_sequence=px.colors.qualitative.Prism)
-                    # [수정] 배경 화이트, 텍스트 화이트
                     fig3.update_traces(textfont_color='white')
                     fig3.update_layout(height=400, paper_bgcolor='white', plot_bgcolor='white')
                     st.plotly_chart(fig3, use_container_width=True)
@@ -729,7 +744,6 @@ elif menu == "⏰ 연장근무 관리":
                     
                     week_chart['누적근무'] = week_chart.groupby('팀명')['총근무'].cumsum()
                     fig4 = px.line(week_chart, x='주차', y='누적근무', color='팀명', markers=True, color_discrete_sequence=px.colors.qualitative.Prism)
-                    # [수정] 배경 화이트
                     fig4.update_layout(height=400, paper_bgcolor='white', plot_bgcolor='white')
                     st.plotly_chart(fig4, use_container_width=True)
         else:
@@ -743,7 +757,7 @@ elif menu == "⏰ 연장근무 관리":
             <div class="row-item">월/주차</div>
             <div class="row-item">팀명</div>
             <div class="row-item">이름</div>
-            <div class="row-item" style="color:#4318FF;">연장</div>
+            <div class="row-item" style="color:#3B82F6;">연장</div>
             <div class="row-item" style="color:#EF4444;">야근</div>
             <div class="row-item" style="color:#0EA5E9;">휴일</div>
             <div class="row-item" style="font-weight:bold;">합계</div>
@@ -766,7 +780,7 @@ elif menu == "⏰ 연장근무 관리":
                         <div class="row-item" style="color:#A3AED0;">{row['월']} {week_str}</div>
                         <div class="row-item"><strong>{row['팀명']}</strong></div>
                         <div class="row-item">{row['이름']}</div>
-                        <div class="row-item" style="color:#4318FF;">{ext:.1f}</div>
+                        <div class="row-item" style="color:#3B82F6;">{ext:.1f}</div>
                         <div class="row-item" style="color:#EF4444;">{night:.1f}</div>
                         <div class="row-item" style="color:#0EA5E9;">{hol:.1f}</div>
                         <div class="row-item" style="font-weight:bold; background-color:#EFF4FB; border-radius:4px; color:#2B3674;">{row['총근무']:.1f}h</div>
