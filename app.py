@@ -7,7 +7,7 @@ import qrcode
 from io import BytesIO
 
 # -----------------------------------------------------------------------------
-# 1. 시스템 설정 및 디자인
+# 1. 시스템 설정 및 디자인 (Learn.io 스타일 적용)
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="통합 관리 시스템",
@@ -16,77 +16,109 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# [CSS] Shiftee Style & Premium UI
+# [CSS] Soft UI & Glassmorphism 디자인
 st.markdown("""
     <style>
-        /* 폰트 설정 */
+        /* 1. 폰트 설정 (Pretendard) */
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-        .stApp { font-family: 'Pretendard', sans-serif; background-color: #F7F8FA; } /* 배경색 변경 */
+        
+        .stApp {
+            font-family: 'Pretendard', sans-serif;
+            background-color: #F4F7FE; /* Learn.io 스타일 배경색 */
+        }
         
         h1, h2, h3, h4, h5, h6, p, div, span, label, button, input, select, textarea {
             font-family: 'Pretendard', sans-serif;
         }
 
-        /* 아이콘 폰트 보호 */
-        .material-symbols-rounded { font-family: 'Material Symbols Rounded' !important; }
+        /* 2. 아이콘 폰트 보호 */
+        .material-symbols-rounded {
+            font-family: 'Material Symbols Rounded' !important;
+        }
 
-        /* 컨테이너 여백 */
-        .block-container { padding-top: 1.5rem; padding-bottom: 5rem; }
+        /* 3. 컨테이너 여백 */
+        .block-container { padding-top: 2rem; padding-bottom: 5rem; }
 
-        /* 공통 카드 스타일 */
+        /* 4. 카드 박스 스타일 (Soft UI) - 둥근 모서리 강화 */
         div.css-1r6slb0, div.stDataFrame, div[data-testid="stMetric"] {
             background-color: white;
-            border-radius: 8px; /* 각진 둥글기 */
-            padding: 20px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05); /* 얕은 그림자 */
-            border: 1px solid #E1E2E6;
+            border-radius: 24px; /* 더 둥글게 */
+            padding: 24px;
+            box-shadow: 0px 4px 20px rgba(112, 144, 176, 0.08); /* 부드러운 그림자 */
+            border: none; /* 테두리 제거 */
         }
 
-        /* Shiftee 스타일 KPI 카드 커스텀 */
-        .kpi-card {
-            background-color: white;
-            border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-            border: 1px solid #E1E2E6;
-            border-top-width: 4px; /* 상단 컬러 라인 */
-            height: 100%;
+        /* 5. 메트릭 숫자 강조 */
+        div[data-testid="stMetricValue"] {
+            font-size: 2rem !important;
+            font-weight: 700 !important;
+            color: #2B3674; /* 진한 네이비 */
         }
-        .kpi-title { color: #6B7280; font-size: 0.9rem; font-weight: 600; margin-bottom: 8px; }
-        .kpi-value { color: #111827; font-size: 2.2rem; font-weight: 800; }
-        .kpi-sub { color: #9CA3AF; font-size: 0.8rem; margin-top: 5px; }
+        div[data-testid="stMetricLabel"] {
+            font-size: 0.9rem !important;
+            color: #A3AED0; /* 연한 회색 */
+            font-weight: 500;
+        }
 
-        /* 테이블 스타일 */
+        /* 6. 커스텀 리스트 스타일 */
         .custom-row {
             background-color: white;
-            border-bottom: 1px solid #F3F4F6;
-            padding: 14px 10px;
+            border-bottom: 1px solid #F4F7FE;
+            padding: 16px 10px;
             display: flex;
             align-items: center;
-            font-size: 0.9rem;
+            transition: all 0.2s ease;
+            border-radius: 12px;
         }
-        .custom-row:hover { background-color: #F9FAFB; }
+        .custom-row:hover { 
+            background-color: #F4F7FE; 
+            transform: translateX(5px);
+        }
         
         .custom-header {
-            background-color: #F9FAFB;
-            border-top: 1px solid #E5E7EB;
-            border-bottom: 1px solid #E5E7EB;
-            padding: 10px 10px;
-            font-weight: 700;
-            color: #4B5563;
+            background-color: #F4F7FE;
+            border-radius: 12px;
+            padding: 12px 10px;
+            font-weight: 600;
+            color: #A3AED0;
             font-size: 0.85rem;
             display: flex;
             align-items: center;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
-
-        /* 배지 스타일 */
-        .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
-        .badge-blue { background-color: #DBEAFE; color: #1E40AF; }
-        .badge-red { background-color: #FEE2E2; color: #991B1B; }
-        .badge-gray { background-color: #F3F4F6; color: #4B5563; }
         
-        /* 섹션 타이틀 */
-        .section-title { font-size: 1.1rem; font-weight: 700; color: #1F2937; margin-bottom: 15px; }
+        .row-item { flex: 1; text-align: center; font-size: 0.95rem; color: #2B3674; font-weight: 500; }
+        .row-item-left { flex: 1; text-align: left; padding-left: 20px; font-size: 0.95rem; color: #2B3674; font-weight: 500; }
+        
+        /* 7. 태그 스타일 */
+        .badge { padding: 6px 12px; border-radius: 30px; font-size: 0.75rem; font-weight: 700; }
+        .badge-red { background-color: #FEE2E2; color: #DC2626; }
+        .badge-blue { background-color: #E0E7FF; color: #4318FF; } /* 퍼플 블루 */
+        .badge-gray { background-color: #F4F7FE; color: #A3AED0; }
+
+        /* 8. 합계 박스 스타일 (Gradient Card) */
+        .total-box {
+            background: linear-gradient(135deg, #868CFF 0%, #4318FF 100%); /* Learn.io 퍼플 */
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 25px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            color: white;
+            box-shadow: 0px 10px 20px rgba(67, 24, 255, 0.2);
+        }
+        .total-label { font-size: 0.9rem; color: #E9E3FF; margin-bottom: 5px; display: block; text-align: center; font-weight: 500;}
+        .total-value { font-size: 1.5rem; font-weight: 700; color: white; display: block; text-align: center;}
+        
+        /* 사이드바 스타일링 */
+        [data-testid="stSidebar"] {
+            background-color: white;
+            border-right: none;
+            box-shadow: 4px 0px 20px rgba(112, 144, 176, 0.05);
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -123,7 +155,7 @@ if not all_sheets:
         st.rerun()
     st.stop()
 
-# 시트 매핑
+# 시트 이름 매핑
 sheet_keys = list(all_sheets.keys())
 budget_sheet_name = next((s for s in sheet_keys if '기준' in s or 'Budget' in s), None)
 expense_sheet_name = next((s for s in sheet_keys if '지출' in s or 'Expense' in s), None)
@@ -136,9 +168,11 @@ overtime_sheet_name = next((s for s in sheet_keys if '연장' in s or 'Overtime'
 with st.sidebar:
     st.title("통합 관리 시스템")
     st.markdown("---")
+    # 라디오 버튼 대신 더 깔끔한 선택지 UI 제공 가능하나 Streamlit 기본 위젯 사용
     menu = st.radio("MAIN MENU", ["💰 예산 관리", "🏖️ 연차 관리", "⏰ 연장근무 관리"])
     st.markdown("---")
     
+    # [QR 코드]
     try:
         import qrcode
         has_qrcode = True
@@ -160,14 +194,14 @@ with st.sidebar:
                     img.save(buffer, format="PNG")
                     st.image(buffer, caption="Mobile Access", use_container_width=True)
                 except:
-                    pass
+                    st.warning("QR Error")
 
 # =============================================================================
 # [PART A] 예산 관리
 # =============================================================================
 if menu == "💰 예산 관리":
     if not budget_sheet_name or not expense_sheet_name:
-        st.error("예산 데이터 시트가 없습니다.")
+        st.error("예산 데이터 시트를 찾을 수 없습니다.")
         st.stop()
 
     df_budget = all_sheets[budget_sheet_name].fillna(0)
@@ -261,21 +295,22 @@ if menu == "💰 예산 관리":
         if not df_dash.empty:
             for i, row in df_dash.iterrows():
                 pct = min(row['집행률'], 100)
-                status_color = "#4318FF" if pct < 80 else ("#FFB547" if pct < 100 else "#FF5630")
+                # Soft UI Color Palette
+                status_color = "#4318FF" if pct < 80 else ("#FFB547" if pct < 100 else "#FF5630") # Indigo, Orange, Red
                 bg_bar = "#EFF4FB"
                 
                 st.markdown(f"""
-                    <div style="background:white; padding:20px; border-radius:8px; margin-bottom:15px; border:1px solid #E1E2E6; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                    <div style="background:white; padding:20px; border-radius:16px; margin-bottom:15px; box-shadow: 0px 3px 10px rgba(0,0,0,0.03);">
                         <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-                            <span style="font-weight:700; color:#111827; font-size:1.0rem;">{row['팀명']}</span>
+                            <span style="font-weight:700; color:#2B3674; font-size:1.05rem;">{row['팀명']}</span>
                             <span style="font-weight:800; color:{status_color};">{row['집행률']:.1f}%</span>
                         </div>
-                        <div style="width:100%; background-color:{bg_bar}; height:8px; border-radius:4px; margin-bottom:12px;">
-                            <div style="width:{pct}%; background-color:{status_color}; height:8px; border-radius:4px;"></div>
+                        <div style="width:100%; background-color:{bg_bar}; height:10px; border-radius:5px; margin-bottom:12px;">
+                            <div style="width:{pct}%; background-color:{status_color}; height:10px; border-radius:5px;"></div>
                         </div>
-                        <div style="display:flex; justify-content:space-between; font-size:0.85rem; color:#6B7280; font-weight:500;">
+                        <div style="display:flex; justify-content:space-between; font-size:0.85rem; color:#A3AED0; font-weight:500;">
                             <span>예산: {row['총예산']:,.0f}</span>
-                            <span>잔액: <strong style="color:#111827;">{row['잔액']:,.0f}</strong></span>
+                            <span>잔액: <strong style="color:#2B3674;">{row['잔액']:,.0f}</strong></span>
                         </div>
                     </div>
                 """, unsafe_allow_html=True)
@@ -283,29 +318,39 @@ if menu == "💰 예산 관리":
             st.info("데이터 없음")
 
     st.subheader("📝 상세 지출 내역")
+    st.markdown(f"""
+        <div class="total-box">
+            <div style="text-align:left; width:100%; display:flex; justify-content:space-between; align-items:center;">
+                <span class="total-label" style="color:#E9E3FF; font-size:1.1rem; text-align:left;">🧾 조회 내역 합계</span>
+                <span class="total-value" style="font-size:1.6rem;">{df_filtered['금액'].sum():,.0f} 원</span>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
     if not df_filtered.empty:
         df_show = df_filtered.sort_values('날짜', ascending=False).reset_index(drop=True)
         st.markdown("""
             <div class="custom-header">
-                <div style="flex:1;">날짜</div>
-                <div style="flex:1;">부서</div>
-                <div style="flex:1;">분류</div>
-                <div style="flex:2;">적요</div>
-                <div style="flex:1; text-align:right;">금액</div>
+                <div class="row-item">날짜</div>
+                <div class="row-item">부서</div>
+                <div class="row-item">대분류</div>
+                <div class="row-item">소분류</div>
+                <div class="row-item-left" style="flex:2;">적요</div>
+                <div class="row-item" style="text-align:right; padding-right:20px;">금액</div>
             </div>
         """, unsafe_allow_html=True)
-        
         with st.container(height=400):
             for _, row in df_show.iterrows():
                 date_str = row['날짜'].strftime('%Y-%m-%d')
                 amt_str = f"{int(row['금액']):,}"
                 st.markdown(f"""
                     <div class="custom-row">
-                        <div style="flex:1; color:#6B7280;">{date_str}</div>
-                        <div style="flex:1;"><strong>{row['팀명']}</strong></div>
-                        <div style="flex:1;"><span class="badge badge-gray">{row['소분류']}</span></div>
-                        <div style="flex:2; color:#374151;">{row['상세내역']}</div>
-                        <div style="flex:1; text-align:right; font-weight:bold; color:#1F2937;">{amt_str}원</div>
+                        <div class="row-item" style="color:#A3AED0; font-size:0.85rem;">{date_str}</div>
+                        <div class="row-item"><strong>{row['팀명']}</strong></div>
+                        <div class="row-item"><span class="badge badge-gray">{row['대분류']}</span></div>
+                        <div class="row-item"><span class="badge badge-gray">{row['소분류']}</span></div>
+                        <div class="row-item-left" style="flex:2; color:#2B3674;">{row['상세내역']}</div>
+                        <div class="row-item" style="text-align:right; padding-right:20px; font-weight:bold; color:#2B3674;">{amt_str}원</div>
                     </div>
                 """, unsafe_allow_html=True)
     else:
@@ -365,12 +410,12 @@ elif menu == "🏖️ 연차 관리":
             r_rem = df_risk['잔여일수'].sum()
             r_rate = (r_use / r_tot * 100) if r_tot > 0 else 0
             
-            # 요약 박스 (Shiftee Style)
             st.markdown(f"""
-                <div style="background-color: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 15px; display: flex; justify-content: space-around; margin-bottom: 20px;">
-                    <div style="text-align:center;"><span style="font-size:0.8rem; color:#991B1B;">대상자 총 연차</span><br><strong>{r_tot:,.1f}</strong></div>
-                    <div style="text-align:center;"><span style="font-size:0.8rem; color:#991B1B;">사용 총계</span><br><strong>{r_use:,.1f}</strong></div>
-                    <div style="text-align:center;"><span style="font-size:0.8rem; color:#DC2626;">잔여 총계</span><br><strong style="font-size:1.1rem; color:#DC2626;">{r_rem:,.1f}</strong></div>
+                <div class="total-box">
+                    <div><span class="total-label">대상자 총 연차</span><span class="total-value">{r_tot:,.1f}</span></div>
+                    <div><span class="total-label">사용 총계</span><span class="total-value">{r_use:,.1f}</span></div>
+                    <div><span class="total-label">잔여 총계</span><span class="total-value" style="color:#FFB547;">{r_rem:,.1f}</span></div>
+                    <div><span class="total-label">그룹 소진율</span><span class="total-value">{r_rate:.1f}%</span></div>
                 </div>
             """, unsafe_allow_html=True)
 
@@ -388,9 +433,9 @@ elif menu == "🏖️ 연차 관리":
                     st.markdown(f"""
                         <div class="custom-row">
                             <div class="row-item"><strong>{row['성명']}</strong></div>
-                            <div class="row-item" style="color:#6B7280;">{row['소속']}</div>
+                            <div class="row-item" style="color:#A3AED0;">{row['소속']}</div>
                             <div class="row-item"><span class="badge badge-red">{row['잔여일수']:.1f}일</span></div>
-                            <div class="row-item" style="font-size:0.8rem; color:#9CA3AF;">잔여 {risk_criteria}일 이상</div>
+                            <div class="row-item" style="font-size:0.8rem; color:#A3AED0;">잔여 {risk_criteria}일 이상</div>
                         </div>
                     """, unsafe_allow_html=True)
         else:
@@ -413,7 +458,7 @@ elif menu == "🏖️ 연차 관리":
         for _, row in df_show.iterrows():
             st.markdown(f"""
                 <div class="custom-row">
-                    <div class="row-item" style="color:#6B7280;">{row['소속']}</div>
+                    <div class="row-item" style="color:#A3AED0;">{row['소속']}</div>
                     <div class="row-item"><strong>{row['성명']}</strong></div>
                     <div class="row-item">{row['합계']:.1f}</div>
                     <div class="row-item">{row['사용일수']:.1f}</div>
@@ -422,7 +467,7 @@ elif menu == "🏖️ 연차 관리":
             """, unsafe_allow_html=True)
 
 # =============================================================================
-# [PART C] 연장근무 관리 (Shiftee Style Redesign)
+# [PART C] 연장근무 관리
 # =============================================================================
 elif menu == "⏰ 연장근무 관리":
     if not overtime_sheet_name:
@@ -448,143 +493,136 @@ elif menu == "⏰ 연장근무 관리":
     
     df_ot['총근무'] = df_ot[valid_num_cols].sum(axis=1)
 
-    # Shiftee Layout Implementation
-    st.title("근태/연장근무 리포트")
-    st.caption("실시간 근무 현황 및 통계")
+    tab_dashboard, tab_weekly = st.tabs(["📊 통합 현황 (Monthly)", "📈 주간 추이 (Weekly)"])
 
-    # 필터 (사이드바 유지)
-    with st.sidebar:
-        st.subheader("연장근무 필터")
+    # 1. 통합 현황
+    with tab_dashboard:
+        st.subheader("통합 연장근무 현황")
+        
         unique_months = [m for m in df_ot['월'].unique() if m != '0' and m != 'Unknown']
         try:
             sorted_months = sorted(unique_months, key=lambda x: int(re.sub(r'\D', '', str(x))) if re.sub(r'\D', '', str(x)) else 0)
         except:
             sorted_months = sorted(unique_months)
+
         month_list = ["전체 누적"] + sorted_months
-        ot_month_opt = st.selectbox("조회 기간", month_list)
+        
+        c_filter, c_ratio = st.columns([2, 4])
+        with c_filter:
+            ot_month_opt = st.selectbox("조회 기간", month_list)
+        
+        df_filtered = df_ot.copy()
+        if ot_month_opt != "전체 누적":
+            df_filtered = df_filtered[df_filtered['월'] == ot_month_opt]
+        
+        total_sum = df_filtered['총근무'].sum()
+        ext_sum = df_filtered[[c for c in df_ot.columns if '연장' in c]].sum().sum()
+        night_sum = df_filtered[[c for c in df_ot.columns if '야근' in c]].sum().sum()
+        hol_sum = df_filtered[[c for c in df_ot.columns if '휴일' in c]].sum().sum()
+        
+        ext_ratio = (ext_sum / total_sum * 100) if total_sum > 0 else 0
+        night_ratio = (night_sum / total_sum * 100) if total_sum > 0 else 0
+        hol_ratio = (hol_sum / total_sum * 100) if total_sum > 0 else 0
 
-        team_list = ["전체"] + sorted(df_ot['팀명'].unique())
-        ot_team_opt = st.selectbox("소속 팀", team_list)
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("총 근무시간", f"{total_sum:,.1f}h")
+        k2.metric("연장 근로", f"{ext_sum:,.1f}h", f"{ext_ratio:.1f}%", delta_color="off")
+        k3.metric("야간 근로", f"{night_sum:,.1f}h", f"{night_ratio:.1f}%", delta_color="off")
+        k4.metric("휴일 근로", f"{hol_sum:,.1f}h", f"{hol_ratio:.1f}%", delta_color="off")
 
-    # 데이터 필터링
-    df_filtered = df_ot.copy()
-    if ot_month_opt != "전체 누적":
-        df_filtered = df_filtered[df_filtered['월'] == ot_month_opt]
-    if ot_team_opt != "전체":
-        df_filtered = df_filtered[df_filtered['팀명'] == ot_team_opt]
-
-    # 1. Top KPI Cards (Shiftee Style with Colored Borders)
-    total_sum = df_filtered['총근무'].sum()
-    ext_sum = df_filtered[[c for c in df_ot.columns if '연장' in c]].sum().sum()
-    night_sum = df_filtered[[c for c in df_ot.columns if '야근' in c]].sum().sum()
-    hol_sum = df_filtered[[c for c in df_ot.columns if '휴일' in c]].sum().sum()
-    
-    # 인원수 계산
-    emp_count = df_filtered['이름'].nunique()
-
-    k1, k2, k3, k4 = st.columns(4)
-    
-    with k1:
-        st.markdown(f"""
-            <div class="kpi-card" style="border-top-color: #3B82F6;">
-                <div class="kpi-title">총 연장근로</div>
-                <div class="kpi-value">{ext_sum:,.1f}</div>
-                <div class="kpi-sub">연장 근무 합계 (시간)</div>
-            </div>
-        """, unsafe_allow_html=True)
-    with k2:
-        st.markdown(f"""
-            <div class="kpi-card" style="border-top-color: #EF4444;">
-                <div class="kpi-title">야간 근로</div>
-                <div class="kpi-value">{night_sum:,.1f}</div>
-                <div class="kpi-sub">22시~06시 근무 (시간)</div>
-            </div>
-        """, unsafe_allow_html=True)
-    with k3:
-        st.markdown(f"""
-            <div class="kpi-card" style="border-top-color: #10B981;">
-                <div class="kpi-title">휴일 근로</div>
-                <div class="kpi-value">{hol_sum:,.1f}</div>
-                <div class="kpi-sub">휴일 근무 합계 (시간)</div>
-            </div>
-        """, unsafe_allow_html=True)
-    with k4:
-        st.markdown(f"""
-            <div class="kpi-card" style="border-top-color: #6B7280;">
-                <div class="kpi-title">대상 인원</div>
-                <div class="kpi-value">{emp_count}</div>
-                <div class="kpi-sub">근무 기록 발생 인원 (명)</div>
-            </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # 2. Middle Section (Chart & List)
-    c_chart, c_list = st.columns([7, 3])
-    
-    with c_chart:
-        st.markdown('<div class="section-title">📊 팀별 근무 유형 비교</div>', unsafe_allow_html=True)
-        if not df_filtered.empty:
-            df_chart = df_filtered.groupby('팀명')[valid_num_cols].sum().reset_index()
-            df_long = df_chart.melt(id_vars='팀명', var_name='유형', value_name='시간')
+        st.markdown("---")
+        
+        c1, c2 = st.columns([1, 1])
+        with c1:
+            st.markdown("##### 🏢 팀별 근무 유형 비교")
+            if not df_filtered.empty:
+                df_chart = df_filtered.groupby('팀명')[valid_num_cols].sum().reset_index()
+                df_long = df_chart.melt(id_vars='팀명', var_name='유형', value_name='시간')
+                
+                # Soft UI Colors: Indigo, Pink, Light Blue
+                fig = px.bar(df_long, x='팀명', y='시간', color='유형',
+                             color_discrete_map={'연장시간':'#4318FF', '연장근로':'#4318FF', '야근시간':'#FF5630', '휴일시간':'#33C5FF'},
+                             text_auto='.0f')
+                fig.update_layout(xaxis_title=None, yaxis_title=None, height=350, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("데이터 없음")
             
-            fig = px.bar(df_long, x='팀명', y='시간', color='유형', barmode='group',
-                         color_discrete_map={'연장시간':'#3B82F6', '연장근로':'#3B82F6', '야근시간':'#EF4444', '휴일시간':'#10B981'},
-                         text_auto='.0f')
-            fig.update_layout(
-                xaxis_title=None, 
-                yaxis_title=None, 
-                height=350, 
-                paper_bgcolor='white', 
-                plot_bgcolor='white',
-                margin=dict(t=20, b=20, l=20, r=20),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-            )
-            st.plotly_chart(fig, use_container_width=True)
+        with c2:
+            st.markdown("##### 📅 월별 통합 추이")
+            if '월' in df_ot.columns and not df_ot.empty:
+                trend_df = df_ot.groupby('월')['총근무'].sum().reset_index()
+                try:
+                    trend_df['sort_key'] = trend_df['월'].apply(lambda x: int(re.sub(r'\D', '', str(x))) if re.sub(r'\D', '', str(x)) else 0)
+                    trend_df = trend_df.sort_values('sort_key')
+                except:
+                    pass
+                
+                # [수정완료] fill_color -> fillcolor (오류 해결)
+                fig2 = px.area(trend_df, x='월', y='총근무', markers=True)
+                fig2.update_traces(line_color='#4318FF', fillcolor='rgba(67, 24, 255, 0.1)')
+                fig2.update_layout(xaxis_title=None, yaxis_title=None, height=350, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                st.plotly_chart(fig2, use_container_width=True)
+            else:
+                st.info("데이터 없음")
+
+    # 2. 주간 추이
+    with tab_weekly:
+        st.subheader("주간 진행 현황 (Weekly)")
+        
+        if sorted_months:
+            target_month = st.selectbox("월 선택", sorted_months, key="weekly_month")
+            df_weekly = df_ot[df_ot['월'] == target_month]
+            
+            if '주차' in df_weekly.columns:
+                c_w1, c_w2 = st.columns([1, 1])
+                
+                with c_w1:
+                    st.markdown("##### 📊 주차별 팀 합계")
+                    week_chart = df_weekly.groupby(['주차', '팀명'])['총근무'].sum().reset_index()
+                    if not week_chart.empty:
+                        fig3 = px.bar(week_chart, x='주차', y='총근무', color='팀명', barmode='group', color_discrete_sequence=px.colors.qualitative.Prism)
+                        fig3.update_layout(height=400, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                        st.plotly_chart(fig3, use_container_width=True)
+                    else:
+                        st.info("해당 월의 데이터가 없습니다.")
+                    
+                with c_w2:
+                    st.markdown("##### 📉 팀별 누적 추이")
+                    if not week_chart.empty:
+                        try:
+                            week_chart['주차_num'] = week_chart['주차'].apply(lambda x: int(re.sub(r'\D', '', str(x))) if re.sub(r'\D', '', str(x)) else 0)
+                            week_chart = week_chart.sort_values('주차_num')
+                        except:
+                            pass
+                        week_chart['누적근무'] = week_chart.groupby('팀명')['총근무'].cumsum()
+                        
+                        fig4 = px.line(week_chart, x='주차', y='누적근무', color='팀명', markers=True, color_discrete_sequence=px.colors.qualitative.Prism)
+                        fig4.update_layout(height=400, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                        st.plotly_chart(fig4, use_container_width=True)
+            else:
+                st.warning("'주차' 컬럼이 데이터에 없습니다.")
         else:
             st.info("데이터가 없습니다.")
 
-    with c_list:
-        st.markdown('<div class="section-title">🚨 관리 필요 (Top 5)</div>', unsafe_allow_html=True)
-        # 상위 근무자 추출
-        top_users = df_filtered.groupby(['이름', '팀명'])['총근무'].sum().reset_index().sort_values('총근무', ascending=False).head(5)
-        
-        if not top_users.empty:
-            with st.container():
-                for i, row in top_users.iterrows():
-                    st.markdown(f"""
-                        <div style="background:white; border:1px solid #E5E7EB; border-radius:8px; padding:12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
-                            <div>
-                                <div style="font-weight:700; color:#1F2937;">{row['이름']}</div>
-                                <div style="font-size:0.75rem; color:#6B7280;">{row['팀명']}</div>
-                            </div>
-                            <div style="text-align:right;">
-                                <div style="font-weight:800; color:#EF4444;">{row['총근무']:.1f}h</div>
-                            </div>
-                        </div>
-                    """, unsafe_allow_html=True)
-        else:
-            st.info("데이터 없음")
-
-    # 3. Bottom Section (Detail Table)
-    st.markdown('<div class="section-title">🗓️ 리포트 현황 (상세)</div>', unsafe_allow_html=True)
+    st.divider()
+    st.subheader("🗓️ 상세 근무 내역")
+    
+    st.markdown("""
+        <div class="custom-header">
+            <div class="row-item">월/주차</div>
+            <div class="row-item">팀명</div>
+            <div class="row-item">이름</div>
+            <div class="row-item" style="color:#4318FF;">연장</div>
+            <div class="row-item" style="color:#FF5630;">야근</div>
+            <div class="row-item" style="color:#33C5FF;">휴일</div>
+            <div class="row-item" style="font-weight:bold;">합계</div>
+        </div>
+    """, unsafe_allow_html=True)
 
     if not df_filtered.empty:
         sort_cols = [c for c in ['월', '주차', '팀명'] if c in df_filtered.columns]
         df_show_ot = df_filtered.sort_values(sort_cols).reset_index(drop=True)
-
-        # 테이블 헤더
-        st.markdown("""
-            <div class="custom-header">
-                <div style="flex:1;">월/주차</div>
-                <div style="flex:1;">팀명</div>
-                <div style="flex:1;">이름</div>
-                <div style="flex:1; text-align:right; color:#3B82F6;">연장</div>
-                <div style="flex:1; text-align:right; color:#EF4444;">야근</div>
-                <div style="flex:1; text-align:right; color:#10B981;">휴일</div>
-                <div style="flex:1.5; text-align:right;">총 합계</div>
-            </div>
-        """, unsafe_allow_html=True)
 
         with st.container(height=500):
             for _, row in df_show_ot.iterrows():
@@ -592,29 +630,17 @@ elif menu == "⏰ 연장근무 관리":
                 night = row.get('야근시간', 0)
                 hol = row.get('휴일시간', 0)
                 week_str = row.get('주차', '')
-                total = row['총근무']
                 
-                # 프로그레스 바 시각화 (최대 52시간 기준)
-                prog_width = min(total / 52 * 100, 100)
-                prog_color = "#EF4444" if total > 12 else "#3B82F6"
-
                 st.markdown(f"""
                     <div class="custom-row">
-                        <div style="flex:1; color:#6B7280;">{row['월']} {week_str}</div>
-                        <div style="flex:1; font-weight:600;">{row['팀명']}</div>
-                        <div style="flex:1;">{row['이름']}</div>
-                        <div style="flex:1; text-align:right; font-family:monospace;">{ext:.1f}</div>
-                        <div style="flex:1; text-align:right; font-family:monospace;">{night:.1f}</div>
-                        <div style="flex:1; text-align:right; font-family:monospace;">{hol:.1f}</div>
-                        <div style="flex:1.5; padding-left:20px;">
-                            <div style="display:flex; align-items:center; gap:8px;">
-                                <div style="flex:1; height:6px; background:#E5E7EB; border-radius:3px; overflow:hidden;">
-                                    <div style="width:{prog_width}%; height:100%; background:{prog_color};"></div>
-                                </div>
-                                <span style="font-weight:700; width:40px; text-align:right;">{total:.1f}h</span>
-                            </div>
-                        </div>
+                        <div class="row-item" style="color:#A3AED0;">{row['월']} {week_str}</div>
+                        <div class="row-item"><strong>{row['팀명']}</strong></div>
+                        <div class="row-item">{row['이름']}</div>
+                        <div class="row-item" style="color:#4318FF;">{ext:.1f}</div>
+                        <div class="row-item" style="color:#FF5630;">{night:.1f}</div>
+                        <div class="row-item" style="color:#33C5FF;">{hol:.1f}</div>
+                        <div class="row-item" style="font-weight:bold; background-color:#EFF4FB; border-radius:4px; color:#2B3674;">{row['총근무']:.1f}h</div>
                     </div>
                 """, unsafe_allow_html=True)
     else:
-        st.info("표시할 상세 내역이 없습니다.")
+        st.info("내역이 없습니다.")
