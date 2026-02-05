@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# [CSS] 프리미엄 UI 디자인 (헤더 스타일 강화)
+# [CSS] 프리미엄 UI 디자인
 st.markdown("""
     <style>
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -88,7 +88,7 @@ st.markdown("""
         .kpi-card {
             background-color: white;
             border-radius: 16px;
-            padding: 20px;
+            padding: 24px;
             box-shadow: 0px 4px 12px rgba(112, 144, 176, 0.08);
             border: 1px solid #E2E8F0;
             height: 100%;
@@ -113,30 +113,23 @@ st.markdown("""
         }
         .custom-row:hover { background-color: #F4F7FE; transform: translateX(5px); }
         
-        /* [NEW] 헤더 디자인 강화 (배경색 & 폰트 컬러 적용) */
         .custom-header {
-            background-color: #EEF2FF; /* 연한 인디고 배경 */
-            border-radius: 16px;
-            padding: 18px 10px;
-            font-weight: 700;
-            color: #4318FF; /* 브랜드 컬러 텍스트 */
-            font-size: 0.95rem;
+            background-color: #F4F7FE;
+            border-radius: 12px;
+            padding: 12px 10px;
+            font-weight: 600;
+            color: #A3AED0;
+            font-size: 0.85rem;
             display: flex;
             align-items: center;
-            margin-bottom: 15px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.03);
-            border: 1px solid #E0E7FF;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
         
         .row-item { flex: 1; text-align: center; font-size: 0.95rem; color: #2B3674; font-weight: 500; }
         .row-item-left { flex: 1; text-align: left; padding-left: 20px; font-size: 0.95rem; color: #2B3674; font-weight: 500; }
         
-        /* 헤더 내부 아이템 컬러 오버라이드 */
-        .custom-header .row-item, .custom-header .row-item-left {
-            color: #4318FF; 
-            font-weight: 800;
-        }
-
         /* 태그 */
         .badge { padding: 6px 12px; border-radius: 30px; font-size: 0.75rem; font-weight: 700; }
         .badge-red { background-color: #FEE2E2; color: #DC2626; }
@@ -480,7 +473,6 @@ if menu == "💰 예산 관리":
     st.subheader("📝 상세 지출 내역")
     if not df_detail_filtered.empty:
         df_show = df_detail_filtered.sort_values('날짜', ascending=False).reset_index(drop=True)
-        # [수정] 헤더 UI 적용
         st.markdown("""
             <div class="custom-header">
                 <div class="row-item">날짜</div>
@@ -523,26 +515,53 @@ elif menu == "🏖️ 연차 관리":
 
     with st.sidebar:
         st.subheader("Filter")
+        # [수정] 월별 필터 추가 (1월~12월)
+        # 연차 데이터에 월별 사용량 컬럼(1월, 2월..)이 있다고 가정
+        # 만약 컬럼이 없다면 전체 누적만 가능
+        leave_month_list = ["전체 누적"] + [f"{i}월" for i in range(1, 13)]
+        leave_period_option = st.selectbox("기간(월)", leave_month_list)
+        
         dept_list = master_teams 
         leave_dept_option = st.selectbox("소속 부서", dept_list)
         risk_criteria = st.slider("촉진 대상 기준 (잔여일)", 5, 25, 10)
 
+    # 부서 필터링
     if leave_dept_option != "전체 팀":
         df_leave = df_leave[df_leave['소속'] == leave_dept_option]
 
+    # [수정] 월별 사용량 로직
+    # 선택된 월의 컬럼이 존재하면 그 값을 '당월사용'으로, 아니면 0
+    # KPI의 '전사 소진율'은 선택된 월의 사용량 기준 또는 전체 누적 기준
+    if leave_period_option != "전체 누적":
+        target_col = leave_period_option # "3월"
+        if target_col in df_leave.columns:
+             # 해당 월 사용량으로 '사용일수' 교체 (화면 표시용)
+             # 주의: 잔여일수는 누적 개념이므로 유지하거나 별도 계산 필요. 
+             # 여기서는 '사용일수'를 해당 월 사용분으로 보여줌.
+             df_leave['당월사용'] = safe_numeric(df_leave[target_col])
+             # 소진율 계산을 위해 분모는 합계(총연차) 유지, 분자는 당월사용
+             display_usage_col = '당월사용'
+        else:
+             st.warning(f"'{target_col}' 데이터 컬럼이 없습니다. 전체 누적으로 표시합니다.")
+             display_usage_col = '사용일수'
+    else:
+        display_usage_col = '사용일수'
+
     df_risk = df_leave[df_leave['잔여일수'] >= risk_criteria].sort_values('잔여일수', ascending=False)
-    avg_usage = (df_leave['사용일수'].sum() / df_leave['합계'].sum() * 100) if df_leave['합계'].sum() > 0 else 0
+    
+    # KPI 계산 (선택된 기간 기준)
+    avg_usage = (df_leave[display_usage_col].sum() / df_leave['합계'].sum() * 100) if df_leave['합계'].sum() > 0 else 0
     tot_liab = df_leave['부채잔액'].sum()
 
     st.markdown(f"""
         <div class="modern-header">
             <h1>🏖️ 연차 관리 대시보드</h1>
-            <p>Status: {leave_dept_option}</p>
+            <p>Status: {leave_dept_option} / {leave_period_option}</p>
         </div>
     """, unsafe_allow_html=True)
 
     k1, k2, k3, k4 = st.columns(4)
-    k1.metric("전사 소진율", f"{avg_usage:.1f}%", delta="Goal 60%")
+    k1.metric(f"소진율 ({leave_period_option})", f"{avg_usage:.1f}%", delta="Goal 60%")
     k2.metric("미사용 연차 부채", f"{tot_liab/100000000:.2f}억", "Estimated", delta_color="inverse")
     k3.metric("촉진 대상자", f"{len(df_risk)}명", f"> {risk_criteria} days", delta_color="inverse")
     k4.metric("평균 잔여일수", f"{df_leave['잔여일수'].mean():.1f}일")
@@ -552,8 +571,9 @@ elif menu == "🏖️ 연차 관리":
     c_chart, c_risk = st.columns([4, 6])
     with c_chart:
         st.subheader("📊 부서별 소진율")
-        dept_sum = df_leave.groupby('소속').agg({'사용일수':'sum', '합계':'sum'}).reset_index()
-        dept_sum['소진율'] = (dept_sum['사용일수'] / dept_sum['합계'] * 100).fillna(0)
+        # 부서별 집계 시 display_usage_col 사용
+        dept_sum = df_leave.groupby('소속').agg({display_usage_col:'sum', '합계':'sum'}).reset_index()
+        dept_sum['소진율'] = (dept_sum[display_usage_col] / dept_sum['합계'] * 100).fillna(0)
         fig = px.bar(dept_sum, x='소속', y='소진율', text=dept_sum['소진율'].apply(lambda x: f"{x:.1f}%"), color='소진율', color_continuous_scale='Bluyl')
         fig.update_traces(textfont_color='white', textposition='auto')
         fig.update_layout(xaxis_title=None, yaxis_title="소진율(%)", height=450, paper_bgcolor='white', plot_bgcolor='white')
@@ -576,16 +596,6 @@ elif menu == "🏖️ 연차 관리":
                 </div>
             """, unsafe_allow_html=True)
             
-            # [수정] 헤더 UI 적용
-            st.markdown("""
-                <div class="custom-header">
-                    <div class="row-item">성명/직급</div>
-                    <div class="row-item">소속</div>
-                    <div class="row-item">잔여일수</div>
-                    <div class="row-item">비고</div>
-                </div>
-            """, unsafe_allow_html=True)
-
             with st.container(height=300):
                 for _, row in df_risk.iterrows():
                     st.markdown(f"""
@@ -601,15 +611,18 @@ elif menu == "🏖️ 연차 관리":
 
     st.divider()
     st.subheader("👥 전체 임직원 명부")
+    # 정렬 및 표시 (사용 컬럼은 display_usage_col 기준)
     df_show = df_leave.sort_values('소속').copy()
     
-    # [수정] 헤더 UI 적용
-    st.markdown("""
+    # 헤더에 '사용' 대신 선택된 기간 표시
+    usage_header = "사용(누적)" if leave_period_option == "전체 누적" else f"사용({leave_period_option})"
+    
+    st.markdown(f"""
         <div class="custom-header">
             <div class="row-item">소속</div>
             <div class="row-item">성명</div>
             <div class="row-item">총 연차</div>
-            <div class="row-item">사용</div>
+            <div class="row-item">{usage_header}</div>
             <div class="row-item">잔여</div>
         </div>
     """, unsafe_allow_html=True)
@@ -620,7 +633,7 @@ elif menu == "🏖️ 연차 관리":
                     <div class="row-item" style="color:#64748B;">{row['소속']}</div>
                     <div class="row-item"><strong>{row['성명']}</strong></div>
                     <div class="row-item">{row['합계']:.1f}</div>
-                    <div class="row-item">{row['사용일수']:.1f}</div>
+                    <div class="row-item">{row[display_usage_col]:.1f}</div>
                     <div class="row-item"><span class="badge badge-blue">{row['잔여일수']:.1f}</span></div>
                 </div>
             """, unsafe_allow_html=True)
@@ -672,10 +685,9 @@ elif menu == "⏰ 연장근무 관리":
         </div>
     """, unsafe_allow_html=True)
 
-    view_mode = st.radio("VIEW MODE", ["📊 통합 현황", "📈 주간 추이"], horizontal=True, label_visibility="collapsed")
-    st.markdown("---")
-
-    # [통합 로직]
+    # [수정] 통합 현황만 유지 (주간 삭제)
+    st.subheader("통합 연장근무 현황")
+    
     total_sum = df_filtered['총근무'].sum()
     ext_sum = df_filtered[[c for c in df_ot.columns if '연장' in c]].sum().sum()
     night_sum = df_filtered[[c for c in df_ot.columns if '야근' in c]].sum().sum()
@@ -687,104 +699,71 @@ elif menu == "⏰ 연장근무 관리":
 
     target_val = total_sum * (target_ratio / 100)
 
-    # 1. 통합 현황
-    if view_mode == "📊 통합 현황":
-        st.subheader("통합 연장근무 현황")
-        
-        k1, k2, k3, k4 = st.columns(4)
-        with k1:
-            st.markdown(f"""<div class="kpi-card" style="border-top-color: #4F46E5;"><div class="kpi-title">총 근무시간</div><div class="kpi-value">{total_sum:,.1f}h</div><div class="kpi-sub">Total Overtime</div></div>""", unsafe_allow_html=True)
-        with k2:
-            st.markdown(f"""<div class="kpi-card" style="border-top-color: #3B82F6;"><div class="kpi-title">연장 근로</div><div class="kpi-value">{ext_sum:,.1f}h</div><div class="kpi-sub">{ext_ratio:.1f}% (Blue)</div></div>""", unsafe_allow_html=True)
-        with k3:
-            st.markdown(f"""<div class="kpi-card" style="border-top-color: #EF4444;"><div class="kpi-title">야간 근로</div><div class="kpi-value">{night_sum:,.1f}h</div><div class="kpi-sub">{night_ratio:.1f}% (Red)</div></div>""", unsafe_allow_html=True)
-        with k4:
-            st.markdown(f"""<div class="kpi-card" style="border-top-color: #0EA5E9;"><div class="kpi-title">휴일 근로</div><div class="kpi-value">{hol_sum:,.1f}h</div><div class="kpi-sub">{hol_ratio:.1f}% (Sky)</div></div>""", unsafe_allow_html=True)
+    # KPI Cards (Shiftee Style)
+    k1, k2, k3, k4 = st.columns(4)
+    with k1:
+        st.markdown(f"""<div class="kpi-card" style="border-top-color: #4F46E5;"><div class="kpi-title">총 근무시간</div><div class="kpi-value">{total_sum:,.1f}h</div><div class="kpi-sub">Total Overtime</div></div>""", unsafe_allow_html=True)
+    with k2:
+        st.markdown(f"""<div class="kpi-card" style="border-top-color: #3B82F6;"><div class="kpi-title">연장 근로</div><div class="kpi-value">{ext_sum:,.1f}h</div><div class="kpi-sub">{ext_ratio:.1f}% (Blue)</div></div>""", unsafe_allow_html=True)
+    with k3:
+        st.markdown(f"""<div class="kpi-card" style="border-top-color: #EF4444;"><div class="kpi-title">야간 근로</div><div class="kpi-value">{night_sum:,.1f}h</div><div class="kpi-sub">{night_ratio:.1f}% (Red)</div></div>""", unsafe_allow_html=True)
+    with k4:
+        st.markdown(f"""<div class="kpi-card" style="border-top-color: #0EA5E9;"><div class="kpi-title">휴일 근로</div><div class="kpi-value">{hol_sum:,.1f}h</div><div class="kpi-sub">{hol_ratio:.1f}% (Sky)</div></div>""", unsafe_allow_html=True)
 
-        st.markdown("---")
+    st.markdown("---")
+    
+    c1, c2 = st.columns([1, 1])
+    with c1:
+        st.markdown("##### 🏢 팀별 근무 유형 비교")
         
-        c1, c2 = st.columns([1, 1])
-        with c1:
-            st.markdown("##### 🏢 팀별 근무 유형 비교")
-            
-            chart_teams = master_teams[1:] if ot_team_opt == "전체 팀" else [ot_team_opt]
-            df_agg = df_filtered.groupby('팀명')[valid_num_cols].sum().reset_index()
-            df_agg = df_agg.set_index('팀명').reindex(chart_teams).fillna(0).reset_index()
-            
-            df_long = df_agg.melt(id_vars='팀명', var_name='유형', value_name='시간')
-            
-            color_map = {
-                '연장시간': '#3B82F6', '연장근로': '#3B82F6', # Blue
-                '야근시간': '#EF4444', # Red
-                '휴일시간': '#0EA5E9'  # Sky
-            }
-            
-            fig = px.bar(df_long, x='시간', y='팀명', color='유형',
-                         orientation='h', # 가로형
-                         barmode='stack', # 누적형
-                         color_discrete_map=color_map,
-                         text_auto='.0f')
-            
-            fig.update_traces(textposition='auto', textfont_size=12, textfont_color='white')
-            fig.update_layout(xaxis_title=None, yaxis_title=None, height=400, 
-                              paper_bgcolor='white', plot_bgcolor='white',
-                              font=dict(size=14))
-            st.plotly_chart(fig, use_container_width=True)
-            
-        with c2:
-            st.markdown("##### 📅 월별 통합 추이")
-            if '월' in df_ot.columns and not df_ot.empty:
-                trend_df = df_ot.groupby('월')['총근무'].sum().reset_index()
-                try:
-                    trend_df['sort_key'] = trend_df['월'].apply(lambda x: int(re.sub(r'\D', '', str(x))) if re.sub(r'\D', '', str(x)) else 0)
-                    trend_df = trend_df.sort_values('sort_key')
-                except: pass
-                
-                fig2 = px.area(trend_df, x='월', y='총근무', markers=True)
-                fig2.update_traces(line_color='#4318FF', fillcolor='rgba(67, 24, 255, 0.1)')
-                fig2.update_layout(xaxis_title=None, yaxis_title=None, height=400, paper_bgcolor='white', plot_bgcolor='white')
-                st.plotly_chart(fig2, use_container_width=True)
-            else:
-                st.info("데이터 없음")
-
-    # 2. 주간 추이
-    elif view_mode == "📈 주간 추이":
-        st.subheader("주간 진행 현황")
+        chart_teams = master_teams[1:] if ot_team_opt == "전체 팀" else [ot_team_opt]
+        df_agg = df_filtered.groupby('팀명')[valid_num_cols].sum().reset_index()
+        df_agg = df_agg.set_index('팀명').reindex(chart_teams).fillna(0).reset_index()
         
-        if '주차' in df_filtered.columns:
-            c_w1, c_w2 = st.columns([1, 1])
-            with c_w1:
-                st.markdown("##### 📊 주차별 합계")
-                week_chart = df_filtered.groupby(['주차', '팀명'])['총근무'].sum().reset_index()
-                if not week_chart.empty:
-                    fig3 = px.bar(week_chart, x='주차', y='총근무', color='팀명', barmode='group', color_discrete_sequence=px.colors.qualitative.Prism)
-                    fig3.update_traces(textfont_color='white')
-                    fig3.update_layout(height=400, paper_bgcolor='white', plot_bgcolor='white')
-                    st.plotly_chart(fig3, use_container_width=True)
-                else:
-                    st.info("데이터가 없습니다.")
-            with c_w2:
-                st.markdown("##### 📉 누적 추이")
-                if not week_chart.empty:
-                    try:
-                        week_chart['주차_num'] = week_chart['주차'].apply(lambda x: int(re.sub(r'\D', '', str(x))) if re.sub(r'\D', '', str(x)) else 0)
-                        week_chart = week_chart.sort_values('주차_num')
-                    except: pass
-                    
-                    week_chart['누적근무'] = week_chart.groupby('팀명')['총근무'].cumsum()
-                    fig4 = px.line(week_chart, x='주차', y='누적근무', color='팀명', markers=True, color_discrete_sequence=px.colors.qualitative.Prism)
-                    fig4.update_layout(height=400, paper_bgcolor='white', plot_bgcolor='white')
-                    st.plotly_chart(fig4, use_container_width=True)
+        df_long = df_agg.melt(id_vars='팀명', var_name='유형', value_name='시간')
+        
+        # [수정] 가로 누적 막대 (Horizontal Stacked Bar)
+        color_map = {
+            '연장시간': '#3B82F6', '연장근로': '#3B82F6', # Blue
+            '야근시간': '#EF4444', # Red
+            '휴일시간': '#0EA5E9'  # Sky
+        }
+        
+        fig = px.bar(df_long, x='시간', y='팀명', color='유형',
+                        orientation='h', # 가로형
+                        barmode='stack', # 누적형
+                        color_discrete_map=color_map,
+                        text_auto='.0f')
+        
+        fig.update_traces(textposition='auto', textfont_size=12, textfont_color='white')
+        fig.update_layout(xaxis_title=None, yaxis_title=None, height=400, 
+                            paper_bgcolor='white', plot_bgcolor='white',
+                            font=dict(size=14))
+        st.plotly_chart(fig, use_container_width=True)
+        
+    with c2:
+        st.markdown("##### 📅 월별 통합 추이")
+        if '월' in df_ot.columns and not df_ot.empty:
+            trend_df = df_ot.groupby('월')['총근무'].sum().reset_index()
+            try:
+                trend_df['sort_key'] = trend_df['월'].apply(lambda x: int(re.sub(r'\D', '', str(x))) if re.sub(r'\D', '', str(x)) else 0)
+                trend_df = trend_df.sort_values('sort_key')
+            except: pass
+            
+            fig2 = px.area(trend_df, x='월', y='총근무', markers=True)
+            fig2.update_traces(line_color='#4318FF', fillcolor='rgba(67, 24, 255, 0.1)')
+            fig2.update_layout(xaxis_title=None, yaxis_title=None, height=400, paper_bgcolor='white', plot_bgcolor='white')
+            st.plotly_chart(fig2, use_container_width=True)
         else:
-            st.warning("'주차' 컬럼이 없어 주간 추이를 표시할 수 없습니다.")
+            st.info("데이터 없음")
 
     st.divider()
     st.subheader("🗓️ 상세 근무 내역")
     
-    # [수정] 헤더 UI 적용
+    # [수정] 헤더에서 '주차' 제거
     st.markdown("""
         <div class="custom-header">
-            <div class="row-item">월/주차</div>
+            <div class="row-item">월</div>
             <div class="row-item">팀명</div>
             <div class="row-item">이름</div>
             <div class="row-item" style="color:#3B82F6;">연장</div>
@@ -803,11 +782,11 @@ elif menu == "⏰ 연장근무 관리":
                 ext = row.get('연장근로', row.get('연장시간', 0))
                 night = row.get('야근시간', 0)
                 hol = row.get('휴일시간', 0)
-                week_str = row.get('주차', '')
+                # week_str = row.get('주차', '') # 주차 제거
                 
                 st.markdown(f"""
                     <div class="custom-row">
-                        <div class="row-item" style="color:#64748B;">{row['월']} {week_str}</div>
+                        <div class="row-item" style="color:#A3AED0;">{row['월']}</div>
                         <div class="row-item"><strong>{row['팀명']}</strong></div>
                         <div class="row-item">{row['이름']}</div>
                         <div class="row-item" style="color:#3B82F6;">{ext:.1f}</div>
