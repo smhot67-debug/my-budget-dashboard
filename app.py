@@ -7,7 +7,10 @@ import qrcode
 from io import BytesIO
 from datetime import datetime
 
+# ────────────────────────────────────────────────
 # 페이지 설정
+# ────────────────────────────────────────────────
+
 st.set_page_config(
     page_title="통합 관리 시스템",
     page_icon="🏢",
@@ -15,9 +18,11 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 개선된 CSS (미니멀 & 모던)
-st.markdown("""
-<style>
+# ────────────────────────────────────────────────
+# CSS (변수로 분리 → SyntaxError 방지)
+# ────────────────────────────────────────────────
+
+CSS = """
 @import url('https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.css');
 
 :root {
@@ -60,69 +65,4 @@ h1, h2, h3 {
     background: white;
     border-bottom: 1px solid var(--border);
     padding: 1.25rem 2rem;
-    margin: -1.5rem -2rem 1.5rem -2rem;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    backdrop-filter: blur(8px);
-}
-
-.modern-header h1 {
-    font-size: 1.6rem;
-    margin: 0;
-}
-
-/* KPI 카드 */
-.kpi-card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 1.25rem;
-    box-shadow: var(--shadow-sm);
-    transition: all 0.2s ease;
-}
-
-.kpi-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
-}
-
-.kpi-title {
-    color: var(--text-muted);
-    font-size: 0.95rem;
-    font-weight: 600;
-    margin-bottom: 0.5rem;
-}
-
-.kpi-value {
-    font-size: 2.1rem;
-    font-weight: 700;
-    color: var(--text);
-}
-
-/* 리스트 행 */
-.custom-row, .custom-header {
-    background: white;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 1rem 1.25rem;
-    margin-bottom: 0.75rem;
-}
-
-.custom-header {
-    background: #F8FAFC;
-    font-weight: 600;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    font-size: 0.875rem;
-    letter-spacing: 0.5px;
-}
-
-.custom-row {
-    transition: all 0.2s;
-}
-
-.custom-row:hover {
-    background: #F8FAFC;
-    border-color: var(--primary-soft);
-    transform: translateY(-1px);
+    margin: -1.5rem -2rem 1.5rem -2rem
