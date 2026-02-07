@@ -7,7 +7,9 @@ import qrcode
 from io import BytesIO
 from datetime import datetime
 
+# -----------------------------------------------------------------------------
 # 1. 시스템 설정 및 디자인
+# -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="통합 관리 시스템",
     page_icon="🏢",
@@ -15,236 +17,202 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# [CSS] 프리미엄 UI 디자인 - 업그레이드 버전
+# [CSS] 프리미엄 UI 디자인
 st.markdown("""
-<style>
-@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    <style>
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        
+        .stApp {
+            font-family: 'Pretendard', sans-serif;
+            background-color: #F4F7FE;
+        }
+        
+        h1, h2, h3, h4, h5, h6, p, div, span, label, button, input, select, textarea {
+            font-family: 'Pretendard', sans-serif;
+        }
 
-    :root {
-        --primary-color: #4F46E5; /* Indigo */
-        --secondary-color: #6D28D9; /* Purple */
-        --accent-color: #10B981; /* Emerald */
-        --bg-color: #F9FAFB; /* Gray 50 */
-        --text-primary: #1F2937; /* Gray 800 */
-        --text-secondary: #6B7280; /* Gray 500 */
-        --card-bg: white;
-        --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        --border-radius: 1rem;
-    }
+        /* 아이콘 폰트 보호 */
+        .material-symbols-rounded { font-family: 'Material Symbols Rounded' !important; }
 
-    .stApp {
-        font-family: 'Pretendard', sans-serif;
-        background-color: var(--bg-color);
-        color: var(--text-primary);
-    }
-    
-    h1, h2, h3, h4, h5, h6, p, div, span, label, button, input, select, textarea {
-        font-family: 'Pretendard', sans-serif;
-    }
+        /* 컨테이너 여백 */
+        .block-container { padding-top: 1.5rem; padding-bottom: 5rem; }
 
-    /* 아이콘 폰트 보호 */
-    .material-symbols-rounded { font-family: 'Material Symbols Rounded' !important; }
+        /* 카드 박스 스타일 */
+        div.css-1r6slb0, div.stDataFrame, div[data-testid="stMetric"] {
+            background-color: white;
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0px 4px 20px rgba(112, 144, 176, 0.08);
+            border: none;
+        }
 
-    /* 컨테이너 여백 */
-    .block-container { padding-top: 2rem; padding-bottom: 2rem; }
+        /* 메트릭 숫자 */
+        div[data-testid="stMetricValue"] {
+            font-size: 1.8rem !important;
+            font-weight: 700 !important;
+            color: #2B3674;
+        }
+        div[data-testid="stMetricLabel"] {
+            font-size: 0.9rem !important;
+            color: #A3AED0;
+            font-weight: 500;
+        }
 
-    /* 카드 박스 스타일 */
-    div.css-1r6slb0, div.stDataFrame, div[data-testid="stMetric"] {
-        background-color: var(--card-bg);
-        border-radius: var(--border-radius);
-        padding: 1.5rem;
-        box-shadow: var(--shadow);
-        border: none;
-    }
+        /* [NEW] 모던 헤더 디자인 */
+        .modern-header {
+            background: white;
+            padding: 25px 30px;
+            border-radius: 20px;
+            box-shadow: 0px 4px 20px rgba(112, 144, 176, 0.08);
+            margin-bottom: 25px;
+            border-left: 10px solid #4318FF;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .modern-header h1 {
+            margin: 0;
+            font-size: 1.8rem;
+            color: #2B3674;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+        .modern-header p {
+            margin: 8px 0 0 0;
+            color: #A3AED0;
+            font-size: 1rem;
+            font-weight: 500;
+        }
 
-    /* 메트릭 숫자 */
-    div[data-testid="stMetricValue"] {
-        font-size: 2rem !important;
-        font-weight: 700 !important;
-        color: var(--primary-color);
-    }
-    div[data-testid="stMetricLabel"] {
-        font-size: 1rem !important;
-        color: var(--text-secondary);
-        font-weight: 500;
-    }
+        /* 커스텀 KPI 카드 */
+        .kpi-card {
+            background-color: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0px 4px 12px rgba(112, 144, 176, 0.08);
+            border: 1px solid #E2E8F0;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .kpi-title { color: #64748B; font-size: 0.9rem; font-weight: 600; margin-bottom: 8px; }
+        .kpi-value { color: #1E293B; font-size: 2.2rem; font-weight: 800; letter-spacing: -1px; }
+        .kpi-sub { color: #94A3B8; font-size: 0.85rem; margin-top: 4px; font-weight: 500; }
 
-    /* 모던 헤더 디자인 */
-    .modern-header {
-        background: linear-gradient(to right, var(--primary-color), var(--secondary-color));
-        padding: 2rem;
-        border-radius: var(--border-radius);
-        margin-bottom: 2rem;
-        color: white;
-        box-shadow: var(--shadow);
-        position: relative;
-        overflow: hidden;
-    }
-    .modern-header::before {
-        content: '';
-        position: absolute;
-        top: 0; left: 0;
-        width: 100%; height: 100%;
-        background: radial-gradient(circle at top left, rgba(255,255,255,0.2), transparent);
-        opacity: 0.5;
-    }
-    .modern-header h1 {
-        margin: 0;
-        font-size: 2rem;
-        font-weight: 800;
-        position: relative;
-        z-index: 1;
-    }
-    .modern-header p {
-        margin: 0.5rem 0 0 0;
-        font-size: 1.1rem;
-        font-weight: 400;
-        opacity: 0.9;
-        position: relative;
-        z-index: 1;
-    }
+        /* 커스텀 리스트 행 */
+        .custom-row {
+            background-color: white;
+            border-bottom: 1px solid #F4F7FE;
+            padding: 16px 10px;
+            display: flex;
+            align-items: center;
+            transition: all 0.2s ease;
+            border-radius: 12px;
+            margin-bottom: 5px;
+        }
+        .custom-row:hover { background-color: #F4F7FE; transform: translateX(5px); }
+        
+        .custom-header {
+            background-color: #F4F7FE;
+            border-radius: 12px;
+            padding: 12px 10px;
+            font-weight: 600;
+            color: #A3AED0;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .row-item { flex: 1; text-align: center; font-size: 0.95rem; color: #2B3674; font-weight: 500; }
+        .row-item-left { flex: 1; text-align: left; padding-left: 20px; font-size: 0.95rem; color: #2B3674; font-weight: 500; }
+        
+        /* 태그 */
+        .badge { padding: 6px 12px; border-radius: 30px; font-size: 0.75rem; font-weight: 700; }
+        .badge-red { background-color: #FEE2E2; color: #DC2626; }
+        .badge-blue { background-color: #E0E7FF; color: #4318FF; }
+        .badge-gray { background-color: #F4F7FE; color: #A3AED0; }
+        
+        /* 합계 박스 */
+        .total-box {
+            background: linear-gradient(135deg, #868CFF 0%, #4318FF 100%);
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 25px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            color: white;
+            box-shadow: 0px 10px 20px rgba(67, 24, 255, 0.2);
+        }
+        .total-label { font-size: 0.9rem; color: #E9E3FF; margin-bottom: 5px; display: block; text-align: center; font-weight: 500;}
+        .total-value { font-size: 1.5rem; font-weight: 700; color: white; display: block; text-align: center;}
+        
+        /* 사이드바 */
+        [data-testid="stSidebar"] {
+            background-color: white;
+            box-shadow: 4px 0px 20px rgba(112, 144, 176, 0.05);
+            border-right: none;
+        }
 
-    /* 커스텀 KPI 카드 */
-    .kpi-card {
-        background-color: var(--card-bg);
-        border-radius: var(--border-radius);
-        padding: 1.5rem;
-        box-shadow: var(--shadow);
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        transition: transform 0.3s ease;
-    }
-    .kpi-card:hover {
-        transform: translateY(-5px);
-    }
-    .kpi-title { color: var(--text-secondary); font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem; }
-    .kpi-value { color: var(--text-primary); font-size: 2.5rem; font-weight: 800; letter-spacing: -1px; }
-    .kpi-sub { color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.25rem; font-weight: 500; }
-
-    /* 커스텀 리스트 행 */
-    .custom-row {
-        background-color: var(--card-bg);
-        border-bottom: 1px solid #E5E7EB;
-        padding: 1rem;
-        display: flex;
-        align-items: center;
-        transition: all 0.3s ease;
-        border-radius: calc(var(--border-radius) / 2);
-        margin-bottom: 0.5rem;
-    }
-    .custom-row:hover { background-color: #F3F4F6; transform: translateY(-2px); box-shadow: var(--shadow); }
-    
-    .custom-header {
-        background-color: #F3F4F6;
-        border-radius: calc(var(--border-radius) / 2);
-        padding: 1rem;
-        font-weight: 600;
-        color: var(--text-secondary);
-        font-size: 0.9rem;
-        display: flex;
-        align-items: center;
-        margin-bottom: 1rem;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    
-    .row-item { flex: 1; text-align: center; font-size: 1rem; color: var(--text-primary); font-weight: 500; }
-    .row-item-left { flex: 1; text-align: left; padding-left: 1.5rem; font-size: 1rem; color: var(--text-primary); font-weight: 500; }
-    
-    /* 태그 */
-    .badge { padding: 0.5rem 1rem; border-radius: 9999px; font-size: 0.875rem; font-weight: 600; }
-    .badge-red { background-color: #FEE2E2; color: #DC2626; }
-    .badge-blue { background-color: #E0E7FF; color: #4F46E5; }
-    .badge-gray { background-color: #F3F4F6; color: #6B7280; }
-    
-    /* 합계 박스 */
-    .total-box {
-        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-        border-radius: var(--border-radius);
-        padding: 1.5rem;
-        margin-bottom: 1.5rem;
-        display: flex;
-        justify-content: space-around;
-        align-items: center;
-        color: white;
-        box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
-        position: relative;
-        overflow: hidden;
-    }
-    .total-box::before {
-        content: '';
-        position: absolute;
-        bottom: -50%; right: -50%;
-        width: 200%; height: 200%;
-        background: radial-gradient(circle, rgba(255,255,255,0.1), transparent);
-        opacity: 0.5;
-    }
-    .total-label { font-size: 1rem; color: rgba(255,255,255,0.8); margin-bottom: 0.25rem; display: block; text-align: center; font-weight: 500;}
-    .total-value { font-size: 1.75rem; font-weight: 700; color: white; display: block; text-align: center;}
-    
-    /* 사이드바 */
-    [data-testid="stSidebar"] {
-        background-color: var(--card-bg);
-        box-shadow: 4px 0 20px rgba(0,0,0,0.05);
-        border-right: none;
-    }
-
-    /* 탭 버튼 스타일 */
-    div.row-widget.stRadio > div {
-        background-color: var(--card-bg);
-        padding: 1rem;
-        border-radius: var(--border-radius);
-        box-shadow: var(--shadow);
-        display: flex;
-        justify-content: center;
-        gap: 1rem;
-        border: 1px solid #E5E7EB;
-        margin-bottom: 1.5rem;
-        margin-top: 1rem;
-    }
-    div.row-widget.stRadio > div[role="radiogroup"] > label {
-        flex: 1;
-        background-color: transparent;
-        border-radius: calc(var(--border-radius) / 1.5);
-        padding: 1rem 0;
-        text-align: center;
-        transition: all 0.3s ease;
-        cursor: pointer;
-        border: 2px solid transparent;
-        margin-right: 0 !important;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }
-    div.row-widget.stRadio > div[role="radiogroup"] > label:hover {
-        background-color: #F3F4F6;
-        color: var(--primary-color);
-        transform: translateY(-2px);
-        box-shadow: var(--shadow);
-    }
-    div.row-widget.stRadio > div[role="radiogroup"] > label[data-checked="true"] {
-        background-color: var(--primary-color);
-        color: white !important;
-        box-shadow: 0 8px 20px rgba(79, 70, 229, 0.3);
-        transform: translateY(-2px);
-    }
-    div.row-widget.stRadio > div[role="radiogroup"] > label p {
-        font-size: 1.25rem !important;
-        font-weight: 700 !important;
-        margin: 0 !important;
-    }
-    div.row-widget.stRadio > div[role="radiogroup"] > label[data-checked="false"] p {
-        color: var(--text-secondary) !important;
-    }
-</style>
+        /* 탭 버튼 스타일 */
+        div.row-widget.stRadio > div {
+            background-color: white;
+            padding: 10px;
+            border-radius: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            border: 1px solid #E2E8F0;
+            margin-bottom: 20px;
+            margin-top: 10px;
+        }
+        div.row-widget.stRadio > div[role="radiogroup"] > label {
+            flex: 1;
+            background-color: transparent;
+            border-radius: 15px;
+            padding: 15px 0;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: 2px solid transparent;
+            margin-right: 0 !important;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        div.row-widget.stRadio > div[role="radiogroup"] > label:hover {
+            background-color: #F8FAFC;
+            color: #4318FF;
+            transform: translateY(-2px);
+        }
+        div.row-widget.stRadio > div[role="radiogroup"] > label[data-checked="true"] {
+            background-color: #4318FF;
+            color: white !important;
+            box-shadow: 0 8px 20px rgba(67, 24, 255, 0.3);
+            transform: translateY(-2px);
+        }
+        div.row-widget.stRadio > div[role="radiogroup"] > label p {
+            font-size: 1.2rem !important;
+            font-weight: 700 !important;
+            margin: 0 !important;
+        }
+        div.row-widget.stRadio > div[role="radiogroup"] > label[data-checked="false"] p {
+            color: #A3AED0 !important;
+        }
+    </style>
 """, unsafe_allow_html=True)
 
 # 구글 시트 주소
 SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6hnNtH_1tBFJoA25lXzFPjKUGpBfu0H313_QVFDPdHOpWDDQSJQvIlOQpUoczNO7z7jyWbE171ApD/pub?output=xlsx"
 
+# -----------------------------------------------------------------------------
 # 2. 데이터 로드 엔진
+# -----------------------------------------------------------------------------
 @st.cache_data(ttl=60)
 def load_all_data():
     try:
@@ -255,7 +223,7 @@ def load_all_data():
 
 def clean_dept_name(name):
     if pd.isna(name): return ""
-    return re.sub(r'^[\d.\s]+', '', str(name))
+    return re.sub(r'^[\d\.\s]+', '', str(name))
 
 def safe_numeric(series):
     if series.dtype == 'object':
@@ -264,6 +232,7 @@ def safe_numeric(series):
         return pd.to_numeric(series, errors='coerce').fillna(0)
 
 all_sheets = load_all_data()
+
 if not all_sheets:
     st.error("데이터 로드 실패. 구글 시트 연결을 확인해주세요.")
     if st.button("🔄 데이터 다시 불러오기"):
@@ -290,19 +259,21 @@ current_year = datetime.now().year
 master_months_list = [f"2026-{str(m).zfill(2)}" for m in range(1, 13)]
 master_months = ["전체 누적"] + master_months_list
 
+# -----------------------------------------------------------------------------
 # 3. 사이드바 및 공통
+# -----------------------------------------------------------------------------
 with st.sidebar:
     st.title("통합 관리 시스템")
     st.markdown("---")
     menu = st.radio("MAIN MENU", ["💰 예산 관리", "🏖️ 연차 관리", "⏰ 연장근무 관리"])
     st.markdown("---")
-
+    
     if st.button("🔄 데이터 새로고침", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
     st.caption("※ 시트 수정 후 1~5분 뒤 반영됩니다.")
     st.markdown("---")
-
+    
     try:
         import qrcode
         has_qrcode = True
@@ -335,12 +306,12 @@ if menu == "💰 예산 관리":
 
     df_budget = all_sheets[budget_sheet_name].fillna(0)
     df_budget.columns = [str(c).strip() for c in df_budget.columns]
-
+    
     for col in df_budget.columns:
         if col != '팀명': df_budget[col] = safe_numeric(df_budget[col])
 
     base_col = next((c for c in df_budget.columns if '배정' in c or '기본' in c), None)
-
+    
     if base_col:
         df_budget['월기본예산'] = df_budget[base_col]
     else:
@@ -349,7 +320,7 @@ if menu == "💰 예산 관리":
 
     df_expense = all_sheets[expense_sheet_name].fillna(0)
     df_expense.columns = [str(c).strip() for c in df_expense.columns]
-
+    
     date_col = next((c for c in df_expense.columns if '날짜' in c or 'Date' in c), None)
     if date_col:
         df_expense[date_col] = pd.to_datetime(df_expense[date_col], errors='coerce')
@@ -358,10 +329,10 @@ if menu == "💰 예산 관리":
     else:
         df_expense['월'] = 'Unknown'
         df_expense['월_숫자'] = 0
-
+    
     if '금액' in df_expense.columns:
         df_expense['금액'] = safe_numeric(df_expense['금액'])
-
+    
     df_expense = df_expense[df_expense['금액'] != 0]
 
     with st.sidebar:
@@ -378,9 +349,9 @@ if menu == "💰 예산 관리":
 
     monthly_exp = df_expense.groupby(['팀명', '월'])['금액'].sum().reset_index()
     dashboard_rows = []
-
+    
     target_teams = df_budget['팀명'].unique() if team_option == "전체 팀" else [team_option]
-
+    
     for team in target_teams:
         team_base_monthly = df_budget.loc[df_budget['팀명'] == team, '월기본예산'].sum()
         
@@ -429,7 +400,7 @@ if menu == "💰 예산 관리":
         })
 
     df_dash = pd.DataFrame(dashboard_rows)
-
+    
     df_detail_filtered = df_expense.copy()
     if period_option != "전체 누적":
         df_detail_filtered = df_detail_filtered[df_detail_filtered['월'] == period_option]
@@ -444,7 +415,7 @@ if menu == "💰 예산 관리":
             <p>Status: {team_option} / {period_option}</p>
         </div>
     """, unsafe_allow_html=True)
-
+    
     if cat_main == "전체":
         tot_b = df_dash['예산'].sum()
         tot_s = df_dash['사용액'].sum()
@@ -529,7 +500,6 @@ if menu == "💰 예산 관리":
     else:
         st.info("내역이 없습니다.")
 
-
 # =============================================================================
 # [PART B] 연차 관리
 # =============================================================================
@@ -568,7 +538,7 @@ elif menu == "🏖️ 연차 관리":
         display_usage_col = '사용일수'
 
     df_risk = df_leave[df_leave['잔여일수'] >= risk_criteria].sort_values('잔여일수', ascending=False)
-
+    
     # KPI
     total_used = df_leave[display_usage_col].sum()
     total_remain = df_leave['잔여일수'].sum()
@@ -636,9 +606,9 @@ elif menu == "🏖️ 연차 관리":
     st.divider()
     st.subheader("👥 전체 임직원 명부")
     df_show = df_leave.sort_values('소속').copy()
-
+    
     usage_header = "사용(누적)" if leave_period_option == "전체 누적" else f"사용({leave_period_option})"
-
+    
     st.markdown(f"""
         <div class="custom-header">
             <div class="row-item">소속</div>
@@ -660,7 +630,6 @@ elif menu == "🏖️ 연차 관리":
                 </div>
             """, unsafe_allow_html=True)
 
-
 # =============================================================================
 # [PART C] 연장근무 관리
 # =============================================================================
@@ -671,7 +640,7 @@ elif menu == "⏰ 연장근무 관리":
 
     df_ot = all_sheets[overtime_sheet_name].fillna(0)
     df_ot.columns = [str(c).replace(' ','').strip() for c in df_ot.columns]
-
+    
     month_col = next((c for c in df_ot.columns if c == '월' or c == 'Month'), None)
     if month_col:
         df_ot.rename(columns={month_col: '월'}, inplace=True)
@@ -685,7 +654,7 @@ elif menu == "⏰ 연장근무 관리":
         if any(x in c for x in num_cols):
             df_ot[c] = safe_numeric(df_ot[c])
             valid_num_cols.append(c)
-
+    
     df_ot['총근무'] = df_ot[valid_num_cols].sum(axis=1)
 
     with st.sidebar:
@@ -714,7 +683,7 @@ elif menu == "⏰ 연장근무 관리":
     ext_sum = df_filtered[[c for c in df_ot.columns if '연장' in c]].sum().sum()
     night_sum = df_filtered[[c for c in df_ot.columns if '야근' in c]].sum().sum()
     hol_sum = df_filtered[[c for c in df_ot.columns if '휴일' in c]].sum().sum()
-
+    
     ext_ratio = (ext_sum / total_sum * 100) if total_sum > 0 else 0
     night_ratio = (night_sum / total_sum * 100) if total_sum > 0 else 0
     hol_ratio = (hol_sum / total_sum * 100) if total_sum > 0 else 0
@@ -812,7 +781,7 @@ elif menu == "⏰ 연장근무 관리":
 
     st.divider()
     st.subheader("🗓️ 상세 근무 내역")
-
+    
     st.markdown("""
         <div class="custom-header">
             <div class="row-item">월</div>
@@ -848,3 +817,4 @@ elif menu == "⏰ 연장근무 관리":
                 """, unsafe_allow_html=True)
     else:
         st.info("내역이 없습니다.")
+
