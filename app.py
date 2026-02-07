@@ -1,11 +1,9 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 import re
-import qrcode
-from io import BytesIO
 from datetime import datetime
+# qrcode, plotly.graph_objects 등은 필요할 때만 import (현재는 주석 처리)
 
 # 페이지 설정
 st.set_page_config(
@@ -15,8 +13,11 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# CSS (변수로 분리 - 안전하게)
-CSS = r"""
+# ────────────────────────────────────────────────
+# CSS (완전하게 닫힌 형태)
+# ────────────────────────────────────────────────
+
+CSS = """
 @import url('https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.css');
 
 :root {
@@ -32,11 +33,27 @@ CSS = r"""
     --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
 }
 
-.stApp { background: var(--bg); font-family: 'Pretendard', sans-serif; color: var(--text); }
-.block-container { padding: 1.5rem 2rem; max-width: 1400px; }
-h1, h2, h3 { font-weight: 700; color: var(--text); }
+.stApp {
+    background: var(--bg);
+    font-family: 'Pretendard', sans-serif;
+    color: var(--text);
+}
 
-[data-testid="stSidebar"] { background: white; border-right: 1px solid var(--border); box-shadow: none; }
+.block-container {
+    padding: 1.5rem 2rem;
+    max-width: 1400px;
+}
+
+h1, h2, h3 {
+    font-weight: 700;
+    color: var(--text);
+}
+
+[data-testid="stSidebar"] {
+    background: white;
+    border-right: 1px solid var(--border);
+    box-shadow: none;
+}
 
 .modern-header {
     background: white;
@@ -48,43 +65,74 @@ h1, h2, h3 { font-weight: 700; color: var(--text); }
     z-index: 100;
     backdrop-filter: blur(8px);
 }
-.modern-header h1 { font-size: 1.6rem; margin: 0; }
 
-.kpi-card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 1.25rem;
-    box-shadow: var(--shadow-sm);
-    transition: all 0.2s ease;
+.modern-header h1 {
+    font-size: 1.6rem;
+    margin: 0;
 }
-.kpi-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+"""
 
-.kpi-title { color: var(--text-muted); font-size: 0.95rem; font-weight: 600; margin-bottom: 0.5rem; }
-.kpi-value { font-size: 2.1rem; font-weight: 700; color: var(--text); }
+st.markdown(f"<style>{CSS}</style>", unsafe_allow_html=True)
 
-.custom-row, .custom-header {
-    background: white;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 1rem 1.25rem;
-    margin-bottom: 0.75rem;
-}
-.custom-header {
-    background: #F8FAFC;
-    font-weight: 600;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    font-size: 0.875rem;
-    letter-spacing: 0.5px;
-}
-.custom-row { transition: all 0.2s; }
-.custom-row:hover { background: #F8FAFC; border-color: var(--primary-soft); transform: translateY(-1px); }
+# ────────────────────────────────────────────────
+# 데이터 로드 (기본 뼈대만)
+# ────────────────────────────────────────────────
 
-.row-item { flex: 1; text-align: center; font-size: 0.95rem; }
-.row-item-left { flex: 2; text-align: left; }
+SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6hnNtH_1tBFJoA25lXzFPjKUGpBfu0H313_QVFDPdHOpWDDQSJQvIlOQpUoczNO7z7jyWbE171ApD/pub?output=xlsx"
 
-.badge { padding: 0.35rem 0.75rem; font-size: 0.875rem; font-weight: 600; border-radius: 9999px; }
-.badge-blue  { background: #EFF6FF; color: #2563EB; }
-.badge-red   { background: #FEF2F2; color: #DC2626; }
-.badge-gray  { background: #F3F4F6
+@st.cache_data(ttl=300)
+def load_data():
+    try:
+        return pd.read_excel(SHEET_URL, sheet_name=None)
+    except Exception as e:
+        st.error("시트 로드 실패")
+        st.error(str(e))
+        return None
+
+sheets = load_data()
+if sheets is None:
+    st.stop()
+
+# ────────────────────────────────────────────────
+# 사이드바
+# ────────────────────────────────────────────────
+
+with st.sidebar:
+    st.title("통합 관리 시스템")
+    st.markdown("---")
+
+    menu = st.radio(
+        "메뉴",
+        options=["💰 예산 관리", "🏖️ 연차 관리", "⏰ 연장근무 관리"],
+        index=0
+    )
+
+    st.markdown("---")
+    if st.button("🔄 새로고침", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
+
+# ────────────────────────────────────────────────
+# 메인 화면
+# ────────────────────────────────────────────────
+
+if menu == "💰 예산 관리":
+    st.markdown(
+        '<div class="modern-header"><h1>💰 예산 관리 대시보드</h1></div>',
+        unsafe_allow_html=True
+    )
+    st.info("여기에 예산 관리 로직을 붙여넣으세요")
+
+elif menu == "🏖️ 연차 관리":
+    st.markdown(
+        '<div class="modern-header"><h1>🏖️ 연차 관리 대시보드</h1></div>',
+        unsafe_allow_html=True
+    )
+    st.info("여기에 연차 관리 로직을 붙여넣으세요")
+
+elif menu == "⏰ 연장근무 관리":
+    st.markdown(
+        '<div class="modern-header"><h1>⏰ 연장근무 관리</h1></div>',
+        unsafe_allow_html=True
+    )
+    st.info("여기에 연장근무 관리 로직을 붙여넣으세요")
