@@ -41,19 +41,19 @@ st.markdown("""
         div.css-1r6slb0, div.stDataFrame, div[data-testid="stMetric"] {
             background-color: white;
             border-radius: 20px;
-            padding: 20px;
+            padding: 24px;
             box-shadow: 0px 4px 20px rgba(112, 144, 176, 0.08);
             border: none;
         }
 
         /* 메트릭 숫자 */
         div[data-testid="stMetricValue"] {
-            font-size: 1.8rem !important;
+            font-size: 2rem !important;
             font-weight: 700 !important;
             color: #2B3674;
         }
         div[data-testid="stMetricLabel"] {
-            font-size: 0.9rem !important;
+            font-size: 0.95rem !important;
             color: #A3AED0;
             font-weight: 500;
         }
@@ -91,6 +91,7 @@ st.markdown("""
             padding: 24px;
             box-shadow: 0px 4px 12px rgba(112, 144, 176, 0.08);
             border: 1px solid #E2E8F0;
+            border-top: 5px solid #3B82F6;
             height: 100%;
             display: flex;
             flex-direction: column;
@@ -109,7 +110,6 @@ st.markdown("""
             align-items: center;
             transition: all 0.2s ease;
             border-radius: 12px;
-            margin-bottom: 5px;
         }
         .custom-row:hover { background-color: #F4F7FE; transform: translateX(5px); }
         
@@ -347,7 +347,8 @@ if menu == "💰 예산 관리":
             sub_cats += sorted(df_expense[df_expense['대분류'] == cat_main]['소분류'].astype(str).unique())
         cat_sub = st.selectbox("소분류", sub_cats)
 
-    monthly_exp = df_expense.groupby(['팀명', '월'])['금액'].sum().reset_index()
+    # 1. 월별 예산 및 이월 계산 (전체 데이터 기준 - 정확한 재무 상태)
+    monthly_exp_all = df_expense.groupby(['팀명', '월'])['금액'].sum().reset_index()
     dashboard_rows = []
     
     target_teams = df_budget['팀명'].unique() if team_option == "전체 팀" else [team_option]
@@ -366,6 +367,7 @@ if menu == "💰 예산 관리":
             except: target_month_idx = 1
         
         if period_option == "전체 누적":
+            # 전체 누적: 연간기본 + 모든추가 - 총지출
             total_base = team_base_monthly * 12
             total_add = 0
             for c in df_budget.columns:
@@ -376,14 +378,22 @@ if menu == "💰 예산 관리":
             final_balance = final_budget - final_spent
             
         else:
+            # 월별 이월 로직 (전월 잔액 + 당월 예산)
             for m in range(1, target_month_idx + 1):
                 month_str = f"2026-{str(m).zfill(2)}"
                 
+                # 당월 예산 = 기본 + 추가
                 add_col = [c for c in df_budget.columns if str(m) in c and '추가' in c]
                 this_add = df_budget.loc[df_budget['팀명'] == team, add_col[0]].sum() if add_col else 0
+                this_base = team_base_monthly
                 
-                available = cumulative_balance + team_base_monthly + this_add
-                spent = monthly_exp[(monthly_exp['팀명'] == team) & (monthly_exp['월'] == month_str)]['금액'].sum()
+                # 가용 예산 = 전월 이월 잔액 + 당월 예산
+                available = cumulative_balance + this_base + this_add
+                
+                # 당월 지출 (모든 카테고리 포함)
+                spent = monthly_exp_all[(monthly_exp_all['팀명'] == team) & (monthly_exp_all['월'] == month_str)]['금액'].sum()
+                
+                # 월말 잔액 (다음달 이월금)
                 cumulative_balance = available - spent
                 
                 if m == target_month_idx:
@@ -394,13 +404,14 @@ if menu == "💰 예산 관리":
         dashboard_rows.append({
             '팀명': team,
             '예산': final_budget,
-            '사용액': final_spent,
+            '사용액': final_spent, # 전체 지출 (카테고리 무관)
             '잔액': final_balance,
             '집행률': (final_spent / final_budget * 100) if final_budget > 0 else 0
         })
 
     df_dash = pd.DataFrame(dashboard_rows)
     
+    # 2. 필터 적용된 지출 데이터 (화면 표시용)
     df_detail_filtered = df_expense.copy()
     if period_option != "전체 누적":
         df_detail_filtered = df_detail_filtered[df_detail_filtered['월'] == period_option]
@@ -416,19 +427,17 @@ if menu == "💰 예산 관리":
         </div>
     """, unsafe_allow_html=True)
     
-    if cat_main == "전체":
-        tot_b = df_dash['예산'].sum()
-        tot_s = df_dash['사용액'].sum()
-        tot_r = df_dash['잔액'].sum()
-    else:
-        tot_b = 0
-        tot_s = df_detail_filtered['금액'].sum()
-        tot_r = 0
+    # KPI - 필터 적용
+    # 예산/잔액: 재무적 팩트이므로 필터와 무관하게 표시 (또는 팀 필터만 적용)
+    # 사용액: 필터(카테고리 등)가 적용된 금액 표시
+    tot_b = df_dash['예산'].sum()
+    tot_s = df_detail_filtered['금액'].sum() # 필터 적용된 사용액
+    tot_r = df_dash['잔액'].sum()
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("가용 예산 (이월포함)", f"{tot_b:,.0f}원")
-    c2.metric("총 사용액", f"{tot_s:,.0f}원")
-    c3.metric("현재 잔액", f"{tot_r:,.0f}원", delta="Remain")
+    c2.metric("총 사용액 (조회기준)", f"{tot_s:,.0f}원")
+    c3.metric("현재 잔액 (실제)", f"{tot_r:,.0f}원", delta="Remain")
     c4.metric("지출 건수", f"{len(df_detail_filtered):,}건")
 
     st.divider()
@@ -436,10 +445,13 @@ if menu == "💰 예산 관리":
     col_chart, col_list = st.columns([4, 6])
     with col_chart:
         st.subheader("📊 예산 집행률")
-        if tot_s > 0:
+        # 차트는 '전체 재무 상태'를 보여주는 것이 일반적이므로 df_dash 사용
+        # 만약 필터된 카테고리 비중을 보고 싶다면 df_detail_filtered 사용
+        # 여기서는 예산 대비 집행률이므로 df_dash(전체 지출 기준) 유지
+        if not df_dash.empty and df_dash['사용액'].sum() > 0:
             fig = px.pie(df_dash, values='사용액', names='팀명', hole=0.6, color_discrete_sequence=px.colors.qualitative.Prism)
             fig.update_layout(showlegend=True, height=400, margin=dict(t=20, b=20, l=20, r=20), paper_bgcolor='white', plot_bgcolor='white')
-            fig.add_annotation(text=f"Total\n{tot_s/10000:,.0f}만", x=0.5, y=0.5, font_size=20, showarrow=False, font_weight="bold", font_color="#2B3674")
+            fig.add_annotation(text=f"Total\n{df_dash['사용액'].sum()/10000:,.0f}만", x=0.5, y=0.5, font_size=20, showarrow=False, font_weight="bold", font_color="#2B3674")
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("지출 데이터가 없습니다.")
@@ -552,7 +564,6 @@ elif menu == "🏖️ 연차 관리":
         </div>
     """, unsafe_allow_html=True)
 
-    # [수정] 6개 카드로 확장 (사용/잔여 추가)
     k1, k2, k3, k4, k5, k6 = st.columns(6)
     k1.metric(f"소진율 ({leave_period_option})", f"{avg_usage:.1f}%", delta="Goal 60%")
     k2.metric("총 사용 연차", f"{total_used:,.1f}일")
@@ -663,6 +674,7 @@ elif menu == "⏰ 연장근무 관리":
         ot_team_opt = st.selectbox("소속 팀", master_teams)
         target_ratio = st.slider("전년 대비 목표 (%)", 80, 120, 90)
 
+    # 데이터 필터링
     df_filtered = df_ot.copy()
     if ot_month_opt != "전체 누적":
         df_filtered = df_filtered[df_filtered['월'] == ot_month_opt]
@@ -679,6 +691,7 @@ elif menu == "⏰ 연장근무 관리":
     view_mode = st.radio("VIEW MODE", ["📊 통합 현황", "📈 주간 추이"], horizontal=True, label_visibility="collapsed")
     st.markdown("---")
 
+    # [통합 로직]
     total_sum = df_filtered['총근무'].sum()
     ext_sum = df_filtered[[c for c in df_ot.columns if '연장' in c]].sum().sum()
     night_sum = df_filtered[[c for c in df_ot.columns if '야근' in c]].sum().sum()
@@ -690,6 +703,7 @@ elif menu == "⏰ 연장근무 관리":
 
     target_val = total_sum * (target_ratio / 100)
 
+    # 1. 통합 현황
     if view_mode == "📊 통합 현황":
         st.subheader("통합 연장근무 현황")
         
@@ -709,6 +723,7 @@ elif menu == "⏰ 연장근무 관리":
         with c1:
             st.markdown("##### 🏢 팀별 근무 유형 비교")
             
+            # 차트용 팀 목록 확보
             chart_teams = master_teams[1:] if ot_team_opt == "전체 팀" else [ot_team_opt]
             df_agg = df_filtered.groupby('팀명')[valid_num_cols].sum().reset_index()
             df_agg = df_agg.set_index('팀명').reindex(chart_teams).fillna(0).reset_index()
@@ -716,9 +731,9 @@ elif menu == "⏰ 연장근무 관리":
             df_long = df_agg.melt(id_vars='팀명', var_name='유형', value_name='시간')
             
             color_map = {
-                '연장시간': '#3B82F6', '연장근로': '#3B82F6', 
-                '야근시간': '#EF4444', 
-                '휴일시간': '#0EA5E9'
+                '연장시간': '#3B82F6', '연장근로': '#3B82F6', # Blue
+                '야근시간': '#EF4444', # Red
+                '휴일시간': '#0EA5E9'  # Sky
             }
             
             fig = px.bar(df_long, x='시간', y='팀명', color='유형',
@@ -749,6 +764,7 @@ elif menu == "⏰ 연장근무 관리":
             else:
                 st.info("데이터 없음")
 
+    # 2. 주간 추이
     elif view_mode == "📈 주간 추이":
         st.subheader("주간 진행 현황")
         
@@ -817,4 +833,3 @@ elif menu == "⏰ 연장근무 관리":
                 """, unsafe_allow_html=True)
     else:
         st.info("내역이 없습니다.")
-
