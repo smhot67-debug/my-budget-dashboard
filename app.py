@@ -32,10 +32,7 @@ st.markdown("""
             font-family: 'Pretendard', sans-serif;
         }
 
-        /* 아이콘 폰트 보호 */
         .material-symbols-rounded { font-family: 'Material Symbols Rounded' !important; }
-
-        /* 컨테이너 여백 */
         .block-container { padding-top: 1.5rem; padding-bottom: 5rem; }
 
         /* 카드 박스 스타일 */
@@ -59,7 +56,7 @@ st.markdown("""
             font-weight: 500;
         }
 
-        /* [NEW] 모던 헤더 디자인 */
+        /* 모던 헤더 */
         .modern-header {
             background: white;
             padding: 25px 30px;
@@ -85,7 +82,7 @@ st.markdown("""
             font-weight: 500;
         }
 
-        /* 커스텀 KPI 카드 */
+        /* KPI 카드 */
         .kpi-card {
             background-color: white;
             border-radius: 16px;
@@ -213,7 +210,7 @@ st.markdown("""
 SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6hnNtH_1tBFJoA25lXzFPjKUGpBfu0H313_QVFDPdHOpWDDQSJQvIlOQpUoczNO7z7jyWbE171ApD/pub?output=xlsx"
 
 # -----------------------------------------------------------------------------
-# 2. 데이터 로드 엔진
+# 2. 데이터 로드 및 유틸리티
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=60)
 def load_all_data():
@@ -233,19 +230,19 @@ def safe_numeric(series):
     else:
         return pd.to_numeric(series, errors='coerce').fillna(0)
 
-# [Helper] 전월 구하기
+# [Helper] 전월 구하기 (자동 필터용)
 def get_default_month_index(options):
     today = datetime.now()
     # 전월 계산
     prev_month = today - relativedelta(months=1)
-    prev_month_str = prev_month.strftime('%Y-%m') # ex: 2026-01
+    # 데이터가 2026년 기준이므로 연도 보정 (실제 사용시에는 today.year 사용)
+    # 여기서는 데모 데이터가 2026년이므로 2026으로 고정하여 매칭 시도
+    prev_month_str = f"2026-{prev_month.strftime('%m')}" 
     
-    # 2026년 기준 하드코딩된 리스트와 매칭 (실제 운영 시 동적 처리 권장)
-    # options 리스트에서 해당 문자열이 포함된 인덱스 찾기
     for i, opt in enumerate(options):
         if prev_month_str in opt:
             return i
-    return 0 # 없으면 첫번째(전체 누적)
+    return 0 
 
 all_sheets = load_all_data()
 
@@ -271,9 +268,9 @@ if budget_sheet_name:
         teams = sorted(df_bm['팀명'].astype(str).unique())
         master_teams = ["전체 팀"] + teams
 
-current_year = datetime.now().year
+# 2026년 기준 1~12월 생성
 master_months_list = [f"2026-{str(m).zfill(2)}" for m in range(1, 13)]
-master_months = ["전체 누적"] + master_months_list # 필터 옵션
+master_months = ["전체 누적"] + master_months_list 
 
 # -----------------------------------------------------------------------------
 # 3. 사이드바 및 공통
@@ -322,12 +319,10 @@ if menu == "💰 예산 관리":
 
     df_budget = all_sheets[budget_sheet_name].fillna(0)
     df_budget.columns = [str(c).strip() for c in df_budget.columns]
-    
     for col in df_budget.columns:
         if col != '팀명': df_budget[col] = safe_numeric(df_budget[col])
 
     base_col = next((c for c in df_budget.columns if '배정' in c or '기본' in c), None)
-    
     if base_col:
         df_budget['월기본예산'] = df_budget[base_col]
     else:
@@ -340,7 +335,7 @@ if menu == "💰 예산 관리":
     date_col = next((c for c in df_expense.columns if '날짜' in c or 'Date' in c), None)
     if date_col:
         df_expense[date_col] = pd.to_datetime(df_expense[date_col], errors='coerce')
-        df_expense['월'] = df_expense[date_col].dt.strftime('%Y-%m') # 2026-01
+        df_expense['월'] = df_expense[date_col].dt.strftime('%Y-%m') 
         df_expense['월_숫자'] = df_expense[date_col].dt.month
     else:
         df_expense['월'] = 'Unknown'
@@ -353,7 +348,7 @@ if menu == "💰 예산 관리":
 
     with st.sidebar:
         st.subheader("Filter")
-        # [자동 필터] 전월 기준 자동 선택
+        # [자동] 전월 자동 선택
         default_idx = get_default_month_index(master_months)
         period_option = st.selectbox("기간", master_months, index=default_idx)
         
@@ -402,33 +397,19 @@ if menu == "💰 예산 관리":
                 add_col = [c for c in df_budget.columns if str(m) in c and '추가' in c]
                 this_add = df_budget.loc[df_budget['팀명'] == team, add_col[0]].sum() if add_col else 0
                 
-                available = cumulative_balance + team_base_monthly + this_add
+                # [수정] 1월은 잔액 이월 없이 시작 (Reset)
+                if m == 1:
+                    available = team_base_monthly + this_add # 전월잔액 없음
+                else:
+                    available = cumulative_balance + team_base_monthly + this_add
+                
                 spent = monthly_exp[(monthly_exp['팀명'] == team) & (monthly_exp['월'] == month_str)]['금액'].sum()
+                cumulative_balance = available - spent
                 
-                # [수정] 1월은 잔액 이월 안 함 (Reset)
-                if m == 1:
-                    cumulative_balance = 0 
-                else:
-                    cumulative_balance = available - spent
-                
-                # 1월은 이월이 없으므로 당월 잔액이 그냥 (가용 - 지출)
-                # 2월부터는 (전월잔액 + 당월예산 - 지출)
-                # 위 로직에서 cumulative_balance는 '다음달로 넘어갈 돈'임.
-                # m=1일때 cumulative_balance를 계산하지 않고 0으로 두면? -> 2월에 0원 들고 시작.
-                
-                # 다시 정리:
-                # 1월: 가용 = 기본 + 추가. 잔액 = 가용 - 지출. (이 잔액을 2월로 넘기지 않음)
-                current_month_balance = available - spent
-                
-                if m == 1:
-                    cumulative_balance = 0 # 2월로 넘기는 돈 0원
-                else:
-                    cumulative_balance = current_month_balance
-
                 if m == target_month_idx:
                     final_budget = available 
                     final_spent = spent
-                    final_balance = current_month_balance # 화면에 보여줄 건 이번달 잔액
+                    final_balance = cumulative_balance
 
         dashboard_rows.append({
             '팀명': team,
@@ -511,7 +492,7 @@ if menu == "💰 예산 관리":
 
     st.subheader("📝 상세 지출 내역 (보안)")
     
-    # [보안] 비밀번호 확인 로직
+    # [수정] 보안 비밀번호 7026
     if 'budget_auth' not in st.session_state:
         st.session_state['budget_auth'] = False
         
@@ -564,20 +545,24 @@ elif menu == "🏖️ 연차 관리":
 
     df_leave = all_sheets[leave_sheet_name].fillna(0)
     df_leave['소속'] = df_leave['소속'].apply(clean_dept_name)
+    
+    # [수정] 대상델리하임 제외
+    df_leave = df_leave[df_leave['소속'] != '대상델리하임']
+
     for col in ['합계', '사용일수', '잔여일수', '부채예산', '부채잔액']:
         if col in df_leave.columns: df_leave[col] = safe_numeric(df_leave[col])
         
-    # [수정] 잔여율 계산
+    # 잔여율 계산
     df_leave['잔여율'] = df_leave.apply(lambda x: (x['잔여일수'] / x['합계'] * 100) if x['합계'] > 0 else 0, axis=1)
 
     with st.sidebar:
         st.subheader("Filter")
+        # [자동] 전월 자동 선택
         default_idx = get_default_month_index(master_months)
         leave_period_option = st.selectbox("기간(월)", master_months, index=default_idx)
         
         dept_list = master_teams 
         leave_dept_option = st.selectbox("소속 부서", dept_list)
-        # [수정] 기준도 %로 변경은 복잡하므로 잔여일 기준 유지하되 표시는 율로
         risk_criteria = st.slider("촉진 대상 기준 (잔여일)", 5, 25, 10)
 
     if leave_dept_option != "전체 팀":
@@ -586,9 +571,8 @@ elif menu == "🏖️ 연차 관리":
     # 월별 사용량 로직
     if leave_period_option != "전체 누적":
         target_col = leave_period_option.split('-')[1] + "월" # 02월 형태
-        # 엑셀 헤더가 '1월', '2월' 형태라면:
+        # 컬럼 매칭 시도
         if target_col not in df_leave.columns:
-             # '2026-02' -> '2월' 변환 시도 (int변환 후 '월' 붙이기)
              try: target_col = f"{int(leave_period_option.split('-')[1])}월"
              except: pass
              
@@ -596,11 +580,12 @@ elif menu == "🏖️ 연차 관리":
              df_leave['당월사용'] = safe_numeric(df_leave[target_col])
              display_usage_col = '당월사용'
         else:
-             st.warning(f"'{target_col}' 데이터가 시트에 없습니다. 누적 사용량으로 표시합니다.")
+             st.warning(f"'{target_col}' 데이터가 없습니다. 누적 사용량으로 표시합니다.")
              display_usage_col = '사용일수'
     else:
         display_usage_col = '사용일수'
 
+    # [수정] 촉진 대상자 정렬 기준 (잔여율)
     df_risk = df_leave[df_leave['잔여일수'] >= risk_criteria].sort_values('잔여율', ascending=False)
     
     # KPI
@@ -617,13 +602,12 @@ elif menu == "🏖️ 연차 관리":
         </div>
     """, unsafe_allow_html=True)
 
-    # [수정] 부채 제거 및 잔여율 추가
-    k1, k2, k3, k4, k5 = st.columns(5)
-    k1.metric(f"소진율 ({leave_period_option})", f"{avg_usage:.1f}%")
+    # [수정] 부채 삭제, 목표 50%
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric(f"소진율 ({leave_period_option})", f"{avg_usage:.1f}%", delta="Goal 50%")
     k2.metric("총 사용 연차", f"{total_used:,.1f}일")
     k3.metric("총 잔여 연차", f"{total_remain:,.1f}일")
-    k4.metric("전사 평균 잔여율", f"{avg_remain_rate:.1f}%", delta="Goal 0%", delta_color="inverse")
-    k5.metric("촉진 대상자", f"{len(df_risk)}명", f"> {risk_criteria} days", delta_color="inverse")
+    k4.metric("전사 평균 잔여율", f"{avg_remain_rate:.1f}%", delta="Down", delta_color="inverse")
 
     st.divider()
 
@@ -643,7 +627,7 @@ elif menu == "🏖️ 연차 관리":
             r_tot = df_risk['합계'].sum()
             r_use = df_risk['사용일수'].sum()
             r_rem = df_risk['잔여일수'].sum()
-            r_rate = (r_rem / r_tot * 100) if r_tot > 0 else 0 # 잔여율 평균
+            r_rate = (r_rem / r_tot * 100) if r_tot > 0 else 0 
             
             st.markdown(f"""
                 <div class="total-box">
@@ -654,6 +638,16 @@ elif menu == "🏖️ 연차 관리":
                 </div>
             """, unsafe_allow_html=True)
             
+            # [수정] 잔여일 삭제, 잔여율만 표시
+            st.markdown("""
+                <div class="custom-header">
+                    <div class="row-item">성명/직급</div>
+                    <div class="row-item">소속</div>
+                    <div class="row-item">잔여율</div>
+                    <div class="row-item">비고</div>
+                </div>
+            """, unsafe_allow_html=True)
+
             with st.container(height=300):
                 for _, row in df_risk.iterrows():
                     st.markdown(f"""
@@ -661,7 +655,7 @@ elif menu == "🏖️ 연차 관리":
                             <div class="row-item"><strong>{row['성명']}</strong></div>
                             <div class="row-item" style="color:#64748B;">{row['소속']}</div>
                             <div class="row-item"><span class="badge badge-red">{row['잔여율']:.1f}%</span></div>
-                            <div class="row-item" style="font-size:0.8rem; color:#94A3B8;">잔여 {row['잔여일수']:.1f}일</div>
+                            <div class="row-item" style="font-size:0.8rem; color:#94A3B8;">잔여 {row['잔여일수']:.1f}일 이상</div>
                         </div>
                     """, unsafe_allow_html=True)
         else:
@@ -671,13 +665,11 @@ elif menu == "🏖️ 연차 관리":
     st.subheader("👥 전체 임직원 명부")
     df_show = df_leave.sort_values('소속').copy()
     
+    # [수정] 전체 명부 컬럼 축소 (잔여율 중심)
     st.markdown("""
         <div class="custom-header">
             <div class="row-item">소속</div>
             <div class="row-item">성명</div>
-            <div class="row-item">총 연차</div>
-            <div class="row-item">사용</div>
-            <div class="row-item">잔여</div>
             <div class="row-item">잔여율</div>
         </div>
     """, unsafe_allow_html=True)
@@ -687,15 +679,12 @@ elif menu == "🏖️ 연차 관리":
                 <div class="custom-row">
                     <div class="row-item" style="color:#64748B;">{row['소속']}</div>
                     <div class="row-item"><strong>{row['성명']}</strong></div>
-                    <div class="row-item">{row['합계']:.1f}</div>
-                    <div class="row-item">{row['사용일수']:.1f}</div>
-                    <div class="row-item" style="color:#3B82F6;">{row['잔여일수']:.1f}</div>
                     <div class="row-item"><span class="badge badge-blue">{row['잔여율']:.1f}%</span></div>
                 </div>
             """, unsafe_allow_html=True)
 
 # =============================================================================
-# [PART C] 연장근무 관리 (팀명 수정 및 정렬)
+# [PART C] 연장근무 관리
 # =============================================================================
 elif menu == "⏰ 연장근무 관리":
     if not overtime_sheet_name:
@@ -705,9 +694,10 @@ elif menu == "⏰ 연장근무 관리":
     df_ot = all_sheets[overtime_sheet_name].fillna(0)
     df_ot.columns = [str(c).replace(' ','').strip() for c in df_ot.columns]
     
-    # [수정] 팀명 변경 (지원팀 -> 경영지원팀)
+    # [수정] 팀명 변경 및 데이터 제외
     df_ot['팀명'] = df_ot['팀명'].replace('지원팀', '경영지원팀')
-    
+    df_ot = df_ot[~df_ot['팀명'].isin(['생산팀', '대상델리하임'])]
+
     month_col = next((c for c in df_ot.columns if c == '월' or c == 'Month'), None)
     if month_col:
         df_ot.rename(columns={month_col: '월'}, inplace=True)
@@ -726,16 +716,15 @@ elif menu == "⏰ 연장근무 관리":
 
     with st.sidebar:
         st.subheader("Filter")
-        # [자동 필터] 전월 자동 선택
+        # [자동] 전월 자동 선택
         default_idx = get_default_month_index(master_months)
         ot_month_opt = st.selectbox("조회 기간", master_months, index=default_idx)
-        
-        # 팀명 업데이트 반영된 리스트
-        updated_teams = ["전체 팀"] + sorted(df_ot['팀명'].unique())
-        ot_team_opt = st.selectbox("소속 팀", updated_teams)
+
+        # 팀 목록 갱신 (제외된 팀 반영)
+        filtered_teams = sorted(df_ot['팀명'].unique())
+        ot_team_opt = st.selectbox("소속 팀", ["전체 팀"] + filtered_teams)
         target_ratio = st.slider("전년 대비 목표 (%)", 80, 120, 90)
 
-    # 데이터 필터링
     df_filtered = df_ot.copy()
     if ot_month_opt != "전체 누적":
         df_filtered = df_filtered[df_filtered['월'] == ot_month_opt]
@@ -752,7 +741,6 @@ elif menu == "⏰ 연장근무 관리":
     view_mode = st.radio("VIEW MODE", ["📊 통합 현황", "📈 주간 추이"], horizontal=True, label_visibility="collapsed")
     st.markdown("---")
 
-    # [통합 로직]
     total_sum = df_filtered['총근무'].sum()
     ext_sum = df_filtered[[c for c in df_ot.columns if '연장' in c]].sum().sum()
     night_sum = df_filtered[[c for c in df_ot.columns if '야근' in c]].sum().sum()
@@ -764,7 +752,6 @@ elif menu == "⏰ 연장근무 관리":
 
     target_val = total_sum * (target_ratio / 100)
 
-    # 1. 통합 현황
     if view_mode == "📊 통합 현황":
         st.subheader("통합 연장근무 현황")
         
@@ -784,8 +771,8 @@ elif menu == "⏰ 연장근무 관리":
         with c1:
             st.markdown("##### 🏢 팀별 근무 유형 비교")
             
-            # 차트용 팀 목록 확보
-            chart_teams = [t for t in updated_teams if t != "전체 팀"] if ot_team_opt == "전체 팀" else [ot_team_opt]
+            # [수정] 생산팀L 명시적 포함 (위에서 생산팀을 뺐으므로 L만 남음)
+            chart_teams = [t for t in filtered_teams] if ot_team_opt == "전체 팀" else [ot_team_opt]
             df_agg = df_filtered.groupby('팀명')[valid_num_cols].sum().reset_index()
             df_agg = df_agg.set_index('팀명').reindex(chart_teams).fillna(0).reset_index()
             
@@ -798,68 +785,34 @@ elif menu == "⏰ 연장근무 관리":
             }
             
             fig = px.bar(df_long, x='시간', y='팀명', color='유형',
-                         orientation='h',
-                         barmode='stack',
-                         color_discrete_map=color_map,
-                         text_auto='.0f')
+                         orientation='h', barmode='stack',
+                         color_discrete_map=color_map, text_auto='.0f')
             
-            # [수정] 폰트 깨짐 방지를 위한 폰트 설정
-            fig.update_layout(font=dict(family="Pretendard, Malgun Gothic, sans-serif"))
             fig.update_traces(textposition='auto', textfont_size=12, textfont_color='white')
             fig.update_layout(xaxis_title=None, yaxis_title=None, height=400, 
-                              paper_bgcolor='white', plot_bgcolor='white')
+                              paper_bgcolor='white', plot_bgcolor='white', font=dict(size=14))
             st.plotly_chart(fig, use_container_width=True)
             
         with c2:
             st.markdown("##### 📅 월별 통합 추이")
             if '월' in df_ot.columns and not df_ot.empty:
                 trend_df = df_ot.groupby('월')['총근무'].sum().reset_index()
+                # [수정] 월별 추이 차트 축 정렬 (날짜순)
                 try:
-                    trend_df['sort_key'] = trend_df['월'].apply(lambda x: int(re.sub(r'\D', '', str(x))) if re.sub(r'\D', '', str(x)) else 0)
-                    trend_df = trend_df.sort_values('sort_key')
+                    # YYYY-MM 문자열 기준 정렬
+                    trend_df = trend_df.sort_values('월')
                 except: pass
                 
                 fig2 = px.area(trend_df, x='월', y='총근무', markers=True)
                 fig2.update_traces(line_color='#4318FF', fillcolor='rgba(67, 24, 255, 0.1)')
-                # [수정] 폰트 설정
-                fig2.update_layout(font=dict(family="Pretendard, Malgun Gothic, sans-serif"))
                 fig2.update_layout(xaxis_title=None, yaxis_title=None, height=400, paper_bgcolor='white', plot_bgcolor='white')
                 st.plotly_chart(fig2, use_container_width=True)
             else:
                 st.info("데이터 없음")
 
-    # 2. 주간 추이
+    # 2. 주간 추이 (삭제됨 - 월별 통합 집중)
     elif view_mode == "📈 주간 추이":
-        st.subheader("주간 진행 현황")
-        
-        if '주차' in df_filtered.columns:
-            c_w1, c_w2 = st.columns([1, 1])
-            with c_w1:
-                st.markdown("##### 📊 주차별 합계")
-                week_chart = df_filtered.groupby(['주차', '팀명'])['총근무'].sum().reset_index()
-                if not week_chart.empty:
-                    fig3 = px.bar(week_chart, x='주차', y='총근무', color='팀명', barmode='group', color_discrete_sequence=px.colors.qualitative.Prism)
-                    fig3.update_layout(font=dict(family="Pretendard, Malgun Gothic, sans-serif"))
-                    fig3.update_traces(textfont_color='white')
-                    fig3.update_layout(height=400, paper_bgcolor='white', plot_bgcolor='white')
-                    st.plotly_chart(fig3, use_container_width=True)
-                else:
-                    st.info("데이터가 없습니다.")
-            with c_w2:
-                st.markdown("##### 📉 누적 추이")
-                if not week_chart.empty:
-                    try:
-                        week_chart['주차_num'] = week_chart['주차'].apply(lambda x: int(re.sub(r'\D', '', str(x))) if re.sub(r'\D', '', str(x)) else 0)
-                        week_chart = week_chart.sort_values('주차_num')
-                    except: pass
-                    
-                    week_chart['누적근무'] = week_chart.groupby('팀명')['총근무'].cumsum()
-                    fig4 = px.line(week_chart, x='주차', y='누적근무', color='팀명', markers=True, color_discrete_sequence=px.colors.qualitative.Prism)
-                    fig4.update_layout(font=dict(family="Pretendard, Malgun Gothic, sans-serif"))
-                    fig4.update_layout(height=400, paper_bgcolor='white', plot_bgcolor='white')
-                    st.plotly_chart(fig4, use_container_width=True)
-        else:
-            st.warning("'주차' 컬럼이 없어 주간 추이를 표시할 수 없습니다.")
+        st.info("주간 추이 기능은 월별 통합 관리에 집중하기 위해 제외되었습니다.")
 
     st.divider()
     st.subheader("🗓️ 상세 근무 내역")
@@ -877,7 +830,6 @@ elif menu == "⏰ 연장근무 관리":
     """, unsafe_allow_html=True)
 
     if not df_filtered.empty:
-        sort_cols = [c for c in ['월', '주차', '팀명'] if c in df_filtered.columns]
         # [수정] 합계 기준 내림차순 정렬
         df_show_ot = df_filtered.sort_values('총근무', ascending=False).reset_index(drop=True)
 
