@@ -32,7 +32,10 @@ st.markdown("""
             font-family: 'Pretendard', sans-serif;
         }
 
+        /* 아이콘 폰트 보호 */
         .material-symbols-rounded { font-family: 'Material Symbols Rounded' !important; }
+
+        /* 컨테이너 여백 */
         .block-container { padding-top: 1.5rem; padding-bottom: 5rem; }
 
         /* 카드 박스 스타일 */
@@ -257,7 +260,7 @@ expense_sheet_name = next((s for s in sheet_keys if '지출' in s or 'Expense' i
 leave_sheet_name = next((s for s in sheet_keys if '원천' in s or 'Leave' in s), None)
 overtime_sheet_name = next((s for s in sheet_keys if '연장' in s or 'Overtime' in s or '근무' in s), None)
 
-# [마스터 데이터]
+# [마스터 데이터] - 엑셀에 있는 팀 목록 그대로 사용 (5개 팀)
 master_teams = ["전체 팀"]
 if budget_sheet_name:
     df_bm = all_sheets[budget_sheet_name].fillna(0)
@@ -360,6 +363,7 @@ if menu == "💰 예산 관리":
     monthly_exp = df_expense.groupby(['팀명', '월'])['금액'].sum().reset_index()
     dashboard_rows = []
     
+    # [핵심] 기준정보 시트에 있는 모든 팀(5개)을 대상으로 루프
     target_teams = df_budget['팀명'].unique() if team_option == "전체 팀" else [team_option]
     
     for team in target_teams:
@@ -402,8 +406,7 @@ if menu == "💰 예산 관리":
                 spent = monthly_exp[(monthly_exp['팀명'] == team) & (monthly_exp['월'] == month_str)]['금액'].sum()
                 current_month_balance = available - spent
                 
-                # 다음 달 이월 설정 (1월 잔액도 이월하지 않으려면 여기서 0 처리 가능하지만, 
-                # 요청사항: "1월 초과/잔여는 다음달 영향 X" -> 즉 1월말 잔액을 0으로 리셋)
+                # 다음 달 이월 설정 (1월 잔액 0원 리셋)
                 if m == 1:
                     cumulative_balance = 0
                 else:
@@ -461,7 +464,8 @@ if menu == "💰 예산 관리":
 
     st.subheader("🏢 팀별 집행 현황")
     
-    # [수정] 빈 팀이어도 보여주기 (필터 제거)
+    # [수정] 무조건 표시 (필터링 로직 제거됨)
+    # 2열 배치 (3:2 구조 자연스럽게 생성)
     if not df_dash.empty:
         col_left, col_right = st.columns(2)
         
