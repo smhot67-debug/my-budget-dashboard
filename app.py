@@ -32,10 +32,7 @@ st.markdown("""
             font-family: 'Pretendard', sans-serif;
         }
 
-        /* 아이콘 폰트 보호 */
         .material-symbols-rounded { font-family: 'Material Symbols Rounded' !important; }
-
-        /* 컨테이너 여백 */
         .block-container { padding-top: 1.5rem; padding-bottom: 5rem; }
 
         /* 카드 박스 스타일 */
@@ -59,7 +56,7 @@ st.markdown("""
             font-weight: 500;
         }
 
-        /* [NEW] 모던 헤더 디자인 */
+        /* 모던 헤더 */
         .modern-header {
             background: white;
             padding: 25px 30px;
@@ -85,7 +82,7 @@ st.markdown("""
             font-weight: 500;
         }
 
-        /* 커스텀 KPI 카드 */
+        /* KPI 카드 */
         .kpi-card {
             background-color: white;
             border-radius: 16px;
@@ -260,12 +257,14 @@ expense_sheet_name = next((s for s in sheet_keys if '지출' in s or 'Expense' i
 leave_sheet_name = next((s for s in sheet_keys if '원천' in s or 'Leave' in s), None)
 overtime_sheet_name = next((s for s in sheet_keys if '연장' in s or 'Overtime' in s or '근무' in s), None)
 
-# [마스터 데이터] - 엑셀에 있는 팀 목록 그대로 사용 (5개 팀)
+# [마스터 데이터]
 master_teams = ["전체 팀"]
 if budget_sheet_name:
     df_bm = all_sheets[budget_sheet_name].fillna(0)
     if '팀명' in df_bm.columns:
         teams = sorted(df_bm['팀명'].astype(str).unique())
+        # [수정] 0번 팀 등 데이터 정제
+        teams = [t for t in teams if t != '0' and t != 'nan']
         master_teams = ["전체 팀"] + teams
 
 current_year = datetime.now().year
@@ -321,6 +320,9 @@ if menu == "💰 예산 관리":
     df_budget.columns = [str(c).strip() for c in df_budget.columns]
     for col in df_budget.columns:
         if col != '팀명': df_budget[col] = safe_numeric(df_budget[col])
+    
+    # [수정] 0번 팀 제거
+    df_budget = df_budget[df_budget['팀명'].astype(str) != '0']
 
     base_col = next((c for c in df_budget.columns if '배정' in c or '기본' in c), None)
     if base_col:
@@ -363,7 +365,6 @@ if menu == "💰 예산 관리":
     monthly_exp = df_expense.groupby(['팀명', '월'])['금액'].sum().reset_index()
     dashboard_rows = []
     
-    # [핵심] 기준정보 시트에 있는 모든 팀(5개)을 대상으로 루프
     target_teams = df_budget['팀명'].unique() if team_option == "전체 팀" else [team_option]
     
     for team in target_teams:
@@ -390,14 +391,13 @@ if menu == "💰 예산 관리":
             final_balance = final_budget - final_spent
             
         else:
-            # 월별 이월 로직
             for m in range(1, target_month_idx + 1):
                 month_str = f"2026-{str(m).zfill(2)}"
                 
                 add_col = [c for c in df_budget.columns if str(m) in c and '추가' in c]
                 this_add = df_budget.loc[df_budget['팀명'] == team, add_col[0]].sum() if add_col else 0
                 
-                # 1월은 잔액 이월 없이 시작 (Reset)
+                # 1월은 잔액 이월 없음 (Reset)
                 if m == 1:
                      available = team_base_monthly + this_add
                 else:
@@ -406,7 +406,7 @@ if menu == "💰 예산 관리":
                 spent = monthly_exp[(monthly_exp['팀명'] == team) & (monthly_exp['월'] == month_str)]['금액'].sum()
                 current_month_balance = available - spent
                 
-                # 다음 달 이월 설정 (1월 잔액 0원 리셋)
+                # 다음 달 이월 설정 (1월 잔액도 이월 X -> 0으로)
                 if m == 1:
                     cumulative_balance = 0
                 else:
@@ -464,38 +464,67 @@ if menu == "💰 예산 관리":
 
     st.subheader("🏢 팀별 집행 현황")
     
-    # [수정] 무조건 표시 (필터링 로직 제거됨)
-    # 2열 배치 (3:2 구조 자연스럽게 생성)
+    # [수정] 3:2 레이아웃 (Grid split)
     if not df_dash.empty:
+        # 데이터프레임을 리스트로 변환
+        records = df_dash.to_dict('records')
+        
+        # 5개 팀 기준: 3개(좌), 2개(우)
+        split_idx = (len(records) + 1) // 2 
+        left_data = records[:split_idx]
+        right_data = records[split_idx:]
+        
         col_left, col_right = st.columns(2)
         
-        for i, row in enumerate(df_dash.to_dict('records')):
-            pct = min(row['집행률'], 100)
-            status_color = "#3B82F6" if pct < 80 else ("#F59E0B" if pct < 100 else "#EF4444")
-            
-            card_html = f"""
-                <div style="background:white; padding:24px; border-radius:16px; margin-bottom:15px; box-shadow: 0px 4px 12px rgba(0,0,0,0.05); border:1px solid #E2E8F0;">
-                    <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                        <span style="font-weight:700; color:#1E293B; font-size:1.1rem;">{row['팀명']}</span>
-                        <span style="font-weight:800; color:{status_color}; font-size:1.1rem;">{row['집행률']:.1f}%</span>
-                    </div>
-                    <div style="width:100%; background-color:#F1F5F9; height:10px; border-radius:5px; margin-bottom:15px;">
-                        <div style="width:{pct}%; background-color:{status_color}; height:10px; border-radius:5px;"></div>
-                    </div>
-                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; font-size:0.9rem; color:#64748B;">
-                        <div>예산: {row['예산']:,.0f}</div>
-                        <div style="text-align:right;">사용: <strong style="color:#1E293B;">{row['사용액']:,.0f}</strong></div>
-                        <div style="grid-column: span 2; text-align:right; border-top:1px solid #F1F5F9; padding-top:8px;">
-                            잔액: <strong style="color:{status_color}; font-size:1rem;">{row['잔액']:,.0f}</strong>
+        # 왼쪽 컬럼 렌더링
+        with col_left:
+            for row in left_data:
+                pct = min(row['집행률'], 100)
+                status_color = "#3B82F6" if pct < 80 else ("#F59E0B" if pct < 100 else "#EF4444")
+                
+                st.markdown(f"""
+                    <div style="background:white; padding:24px; border-radius:16px; margin-bottom:15px; box-shadow: 0px 4px 12px rgba(0,0,0,0.05); border:1px solid #E2E8F0;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                            <span style="font-weight:700; color:#1E293B; font-size:1.1rem;">{row['팀명']}</span>
+                            <span style="font-weight:800; color:{status_color}; font-size:1.1rem;">{row['집행률']:.1f}%</span>
+                        </div>
+                        <div style="width:100%; background-color:#F1F5F9; height:10px; border-radius:5px; margin-bottom:15px;">
+                            <div style="width:{pct}%; background-color:{status_color}; height:10px; border-radius:5px;"></div>
+                        </div>
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; font-size:0.9rem; color:#64748B;">
+                            <div>예산: {row['예산']:,.0f}</div>
+                            <div style="text-align:right;">사용: <strong style="color:#1E293B;">{row['사용액']:,.0f}</strong></div>
+                            <div style="grid-column: span 2; text-align:right; border-top:1px solid #F1F5F9; padding-top:8px;">
+                                잔액: <strong style="color:{status_color}; font-size:1rem;">{row['잔액']:,.0f}</strong>
+                            </div>
                         </div>
                     </div>
-                </div>
-            """
-            
-            if i % 2 == 0:
-                with col_left: st.markdown(card_html, unsafe_allow_html=True)
-            else:
-                with col_right: st.markdown(card_html, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
+
+        # 오른쪽 컬럼 렌더링
+        with col_right:
+            for row in right_data:
+                pct = min(row['집행률'], 100)
+                status_color = "#3B82F6" if pct < 80 else ("#F59E0B" if pct < 100 else "#EF4444")
+                
+                st.markdown(f"""
+                    <div style="background:white; padding:24px; border-radius:16px; margin-bottom:15px; box-shadow: 0px 4px 12px rgba(0,0,0,0.05); border:1px solid #E2E8F0;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                            <span style="font-weight:700; color:#1E293B; font-size:1.1rem;">{row['팀명']}</span>
+                            <span style="font-weight:800; color:{status_color}; font-size:1.1rem;">{row['집행률']:.1f}%</span>
+                        </div>
+                        <div style="width:100%; background-color:#F1F5F9; height:10px; border-radius:5px; margin-bottom:15px;">
+                            <div style="width:{pct}%; background-color:{status_color}; height:10px; border-radius:5px;"></div>
+                        </div>
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; font-size:0.9rem; color:#64748B;">
+                            <div>예산: {row['예산']:,.0f}</div>
+                            <div style="text-align:right;">사용: <strong style="color:#1E293B;">{row['사용액']:,.0f}</strong></div>
+                            <div style="grid-column: span 2; text-align:right; border-top:1px solid #F1F5F9; padding-top:8px;">
+                                잔액: <strong style="color:{status_color}; font-size:1rem;">{row['잔액']:,.0f}</strong>
+                            </div>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
     else:
         st.info("데이터 없음")
 
@@ -554,6 +583,7 @@ elif menu == "🏖️ 연차 관리":
     df_leave = all_sheets[leave_sheet_name].fillna(0)
     df_leave['소속'] = df_leave['소속'].apply(clean_dept_name)
     
+    # [수정] 대상델리하임 제외
     df_leave = df_leave[df_leave['소속'] != '대상델리하임']
 
     for col in ['합계', '사용일수', '잔여일수', '부채예산', '부채잔액']:
@@ -592,7 +622,8 @@ elif menu == "🏖️ 연차 관리":
     
     total_used = df_leave[display_usage_col].sum()
     total_remain = df_leave['잔여일수'].sum()
-    avg_remain_rate = (total_remain / df_leave['합계'].sum() * 100) if df_leave['합계'].sum() > 0 else 0
+    
+    # [수정] 목표 소진율 50%
     avg_usage = (total_used / df_leave['합계'].sum() * 100) if df_leave['합계'].sum() > 0 else 0
 
     st.markdown(f"""
@@ -602,11 +633,12 @@ elif menu == "🏖️ 연차 관리":
         </div>
     """, unsafe_allow_html=True)
 
+    # [수정] 부채 제거
     k1, k2, k3, k4 = st.columns(4)
     k1.metric(f"소진율 ({leave_period_option})", f"{avg_usage:.1f}%", delta="Goal 50%")
     k2.metric("총 사용 연차", f"{total_used:,.1f}일")
     k3.metric("총 잔여 연차", f"{total_remain:,.1f}일")
-    k4.metric("전사 평균 잔여율", f"{avg_remain_rate:.1f}%", delta="Down", delta_color="inverse")
+    k4.metric("촉진 대상자", f"{len(df_risk)}명", f"> {risk_criteria} days", delta_color="inverse")
 
     st.divider()
 
@@ -623,6 +655,7 @@ elif menu == "🏖️ 연차 관리":
     with c_risk:
         st.subheader(f"🚨 촉진 대상자 (High Residual Rate)")
         if not df_risk.empty:
+            # [수정] 부채 제외 요약
             r_tot = df_risk['합계'].sum()
             r_use = df_risk['사용일수'].sum()
             r_rem = df_risk['잔여일수'].sum()
@@ -637,6 +670,7 @@ elif menu == "🏖️ 연차 관리":
                 </div>
             """, unsafe_allow_html=True)
             
+            # [수정] 잔여일 -> 잔여율로 변경
             st.markdown("""
                 <div class="custom-header">
                     <div class="row-item">성명/직급</div>
@@ -653,7 +687,7 @@ elif menu == "🏖️ 연차 관리":
                             <div class="row-item"><strong>{row['성명']}</strong></div>
                             <div class="row-item" style="color:#64748B;">{row['소속']}</div>
                             <div class="row-item"><span class="badge badge-red">{row['잔여율']:.1f}%</span></div>
-                            <div class="row-item" style="font-size:0.8rem; color:#94A3B8;">잔여 {row['잔여일수']:.1f}일 이상</div>
+                            <div class="row-item" style="font-size:0.8rem; color:#94A3B8;">잔여 {row['잔여일수']:.1f}일</div>
                         </div>
                     """, unsafe_allow_html=True)
         else:
@@ -663,13 +697,12 @@ elif menu == "🏖️ 연차 관리":
     st.subheader("👥 전체 임직원 명부")
     df_show = df_leave.sort_values('소속').copy()
     
+    # [수정] 잔여율만 표시 (총/사용/잔여일 삭제)
     st.markdown("""
         <div class="custom-header">
             <div class="row-item">소속</div>
             <div class="row-item">성명</div>
-            <div class="row-item">총 연차</div>
-            <div class="row-item">{usage_header}</div>
-            <div class="row-item">잔여</div>
+            <div class="row-item">잔여율</div>
         </div>
     """, unsafe_allow_html=True)
     with st.container(height=500):
@@ -678,9 +711,7 @@ elif menu == "🏖️ 연차 관리":
                 <div class="custom-row">
                     <div class="row-item" style="color:#64748B;">{row['소속']}</div>
                     <div class="row-item"><strong>{row['성명']}</strong></div>
-                    <div class="row-item">{row['합계']:.1f}</div>
-                    <div class="row-item">{row[display_usage_col]:.1f}</div>
-                    <div class="row-item"><span class="badge badge-blue">{row['잔여일수']:.1f}</span></div>
+                    <div class="row-item"><span class="badge badge-blue">{row['잔여율']:.1f}%</span></div>
                 </div>
             """, unsafe_allow_html=True)
 
@@ -695,6 +726,7 @@ elif menu == "⏰ 연장근무 관리":
     df_ot = all_sheets[overtime_sheet_name].fillna(0)
     df_ot.columns = [str(c).replace(' ','').strip() for c in df_ot.columns]
     
+    # [수정] 지원팀 -> 경영지원팀, 생산팀/대상델리하임 제외
     df_ot['팀명'] = df_ot['팀명'].replace('지원팀', '경영지원팀')
     df_ot = df_ot[~df_ot['팀명'].isin(['생산팀', '대상델리하임'])]
     
@@ -798,6 +830,7 @@ elif menu == "⏰ 연장근무 관리":
             if '월' in df_ot.columns and not df_ot.empty:
                 trend_df = df_ot.groupby('월')['총근무'].sum().reset_index()
                 try:
+                    # [수정] 날짜 기준 정렬 (X축 깨짐 방지)
                     trend_df['sort_key'] = trend_df['월'].apply(lambda x: int(re.sub(r'\D', '', str(x))) if re.sub(r'\D', '', str(x)) else 0)
                     trend_df = trend_df.sort_values('sort_key')
                 except: pass
@@ -828,6 +861,7 @@ elif menu == "⏰ 연장근무 관리":
     """, unsafe_allow_html=True)
 
     if not df_filtered.empty:
+        # [수정] 내림차순 정렬 (근무시간 많은 순)
         df_show_ot = df_filtered.sort_values('총근무', ascending=False).reset_index(drop=True)
 
         with st.container(height=500):
