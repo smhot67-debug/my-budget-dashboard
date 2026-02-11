@@ -233,10 +233,7 @@ def safe_numeric(series):
 # [Helper] 전월 구하기 (자동 필터용)
 def get_default_month_index(options):
     today = datetime.now()
-    # 전월 계산
     prev_month = today - relativedelta(months=1)
-    # 데이터가 2026년 기준이므로 연도 보정 (실제 사용시에는 today.year 사용)
-    # 여기서는 데모 데이터가 2026년이므로 2026으로 고정하여 매칭 시도
     prev_month_str = f"2026-{prev_month.strftime('%m')}" 
     
     for i, opt in enumerate(options):
@@ -268,7 +265,7 @@ if budget_sheet_name:
         teams = sorted(df_bm['팀명'].astype(str).unique())
         master_teams = ["전체 팀"] + teams
 
-# 2026년 기준 1~12월 생성
+current_year = datetime.now().year
 master_months_list = [f"2026-{str(m).zfill(2)}" for m in range(1, 13)]
 master_months = ["전체 누적"] + master_months_list 
 
@@ -348,7 +345,6 @@ if menu == "💰 예산 관리":
 
     with st.sidebar:
         st.subheader("Filter")
-        # [자동] 전월 자동 선택
         default_idx = get_default_month_index(master_months)
         period_option = st.selectbox("기간", master_months, index=default_idx)
         
@@ -390,26 +386,35 @@ if menu == "💰 예산 관리":
             final_balance = final_budget - final_spent
             
         else:
-            # 월별 이월 로직
             for m in range(1, target_month_idx + 1):
                 month_str = f"2026-{str(m).zfill(2)}"
                 
                 add_col = [c for c in df_budget.columns if str(m) in c and '추가' in c]
                 this_add = df_budget.loc[df_budget['팀명'] == team, add_col[0]].sum() if add_col else 0
                 
-                # [수정] 1월은 잔액 이월 없이 시작 (Reset)
+                # [수정] 1월 잔액 이월 방지 로직 (m=1일때 cumulative_balance 초기화)
+                # 이전 루프의 cumulative_balance를 사용해 available 계산
+                
                 if m == 1:
-                    available = team_base_monthly + this_add # 전월잔액 없음
+                     # 1월은 전월 이월 없이 시작
+                     available = team_base_monthly + this_add
                 else:
-                    available = cumulative_balance + team_base_monthly + this_add
+                     available = cumulative_balance + team_base_monthly + this_add
                 
                 spent = monthly_exp[(monthly_exp['팀명'] == team) & (monthly_exp['월'] == month_str)]['금액'].sum()
-                cumulative_balance = available - spent
                 
+                current_month_balance = available - spent
+                
+                # 다음 달로 넘길 잔액 설정
+                if m == 1:
+                    cumulative_balance = 0 # 1월 잔액은 다음달로 이월하지 않음 (Reset)
+                else:
+                    cumulative_balance = current_month_balance
+
                 if m == target_month_idx:
                     final_budget = available 
                     final_spent = spent
-                    final_balance = cumulative_balance
+                    final_balance = current_month_balance
 
         dashboard_rows.append({
             '팀명': team,
@@ -492,7 +497,7 @@ if menu == "💰 예산 관리":
 
     st.subheader("📝 상세 지출 내역 (보안)")
     
-    # [수정] 보안 비밀번호 7026
+    # [보안] 비밀번호 7026
     if 'budget_auth' not in st.session_state:
         st.session_state['budget_auth'] = False
         
@@ -536,7 +541,7 @@ if menu == "💰 예산 관리":
             st.info("내역이 없습니다.")
 
 # =============================================================================
-# [PART B] 연차 관리 (잔여율 중심)
+# [PART B] 연차 관리
 # =============================================================================
 elif menu == "🏖️ 연차 관리":
     if not leave_sheet_name:
@@ -557,7 +562,6 @@ elif menu == "🏖️ 연차 관리":
 
     with st.sidebar:
         st.subheader("Filter")
-        # [자동] 전월 자동 선택
         default_idx = get_default_month_index(master_months)
         leave_period_option = st.selectbox("기간(월)", master_months, index=default_idx)
         
@@ -568,10 +572,8 @@ elif menu == "🏖️ 연차 관리":
     if leave_dept_option != "전체 팀":
         df_leave = df_leave[df_leave['소속'] == leave_dept_option]
 
-    # 월별 사용량 로직
     if leave_period_option != "전체 누적":
-        target_col = leave_period_option.split('-')[1] + "월" # 02월 형태
-        # 컬럼 매칭 시도
+        target_col = leave_period_option.split('-')[1] + "월"
         if target_col not in df_leave.columns:
              try: target_col = f"{int(leave_period_option.split('-')[1])}월"
              except: pass
@@ -585,13 +587,10 @@ elif menu == "🏖️ 연차 관리":
     else:
         display_usage_col = '사용일수'
 
-    # [수정] 촉진 대상자 정렬 기준 (잔여율)
     df_risk = df_leave[df_leave['잔여일수'] >= risk_criteria].sort_values('잔여율', ascending=False)
     
-    # KPI
     total_used = df_leave[display_usage_col].sum()
     total_remain = df_leave['잔여일수'].sum()
-    # 전사 평균 잔여율
     avg_remain_rate = (total_remain / df_leave['합계'].sum() * 100) if df_leave['합계'].sum() > 0 else 0
     avg_usage = (total_used / df_leave['합계'].sum() * 100) if df_leave['합계'].sum() > 0 else 0
 
@@ -602,7 +601,6 @@ elif menu == "🏖️ 연차 관리":
         </div>
     """, unsafe_allow_html=True)
 
-    # [수정] 부채 삭제, 목표 50%
     k1, k2, k3, k4 = st.columns(4)
     k1.metric(f"소진율 ({leave_period_option})", f"{avg_usage:.1f}%", delta="Goal 50%")
     k2.metric("총 사용 연차", f"{total_used:,.1f}일")
@@ -638,7 +636,6 @@ elif menu == "🏖️ 연차 관리":
                 </div>
             """, unsafe_allow_html=True)
             
-            # [수정] 잔여일 삭제, 잔여율만 표시
             st.markdown("""
                 <div class="custom-header">
                     <div class="row-item">성명/직급</div>
@@ -665,7 +662,6 @@ elif menu == "🏖️ 연차 관리":
     st.subheader("👥 전체 임직원 명부")
     df_show = df_leave.sort_values('소속').copy()
     
-    # [수정] 전체 명부 컬럼 축소 (잔여율 중심)
     st.markdown("""
         <div class="custom-header">
             <div class="row-item">소속</div>
@@ -694,9 +690,14 @@ elif menu == "⏰ 연장근무 관리":
     df_ot = all_sheets[overtime_sheet_name].fillna(0)
     df_ot.columns = [str(c).replace(' ','').strip() for c in df_ot.columns]
     
-    # [수정] 팀명 변경 및 데이터 제외
+    # [수정] 팀명 변경 및 데이터 제외 (생산팀, 대상델리하임 제외)
     df_ot['팀명'] = df_ot['팀명'].replace('지원팀', '경영지원팀')
     df_ot = df_ot[~df_ot['팀명'].isin(['생산팀', '대상델리하임'])]
+    # 생산팀L 등은 포함됨
+    
+    # [수정] TypeError 방지 (팀명 문자열 변환)
+    if '팀명' in df_ot.columns:
+        df_ot['팀명'] = df_ot['팀명'].astype(str)
 
     month_col = next((c for c in df_ot.columns if c == '월' or c == 'Month'), None)
     if month_col:
@@ -716,11 +717,10 @@ elif menu == "⏰ 연장근무 관리":
 
     with st.sidebar:
         st.subheader("Filter")
-        # [자동] 전월 자동 선택
         default_idx = get_default_month_index(master_months)
         ot_month_opt = st.selectbox("조회 기간", master_months, index=default_idx)
 
-        # 팀 목록 갱신 (제외된 팀 반영)
+        # [수정] 정렬된 팀 리스트 (오류 방지)
         filtered_teams = sorted(df_ot['팀명'].unique())
         ot_team_opt = st.selectbox("소속 팀", ["전체 팀"] + filtered_teams)
         target_ratio = st.slider("전년 대비 목표 (%)", 80, 120, 90)
@@ -771,7 +771,6 @@ elif menu == "⏰ 연장근무 관리":
         with c1:
             st.markdown("##### 🏢 팀별 근무 유형 비교")
             
-            # [수정] 생산팀L 명시적 포함 (위에서 생산팀을 뺐으므로 L만 남음)
             chart_teams = [t for t in filtered_teams] if ot_team_opt == "전체 팀" else [ot_team_opt]
             df_agg = df_filtered.groupby('팀명')[valid_num_cols].sum().reset_index()
             df_agg = df_agg.set_index('팀명').reindex(chart_teams).fillna(0).reset_index()
@@ -797,10 +796,9 @@ elif menu == "⏰ 연장근무 관리":
             st.markdown("##### 📅 월별 통합 추이")
             if '월' in df_ot.columns and not df_ot.empty:
                 trend_df = df_ot.groupby('월')['총근무'].sum().reset_index()
-                # [수정] 월별 추이 차트 축 정렬 (날짜순)
                 try:
-                    # YYYY-MM 문자열 기준 정렬
-                    trend_df = trend_df.sort_values('월')
+                    trend_df['sort_key'] = trend_df['월'].apply(lambda x: int(re.sub(r'\D', '', str(x))) if re.sub(r'\D', '', str(x)) else 0)
+                    trend_df = trend_df.sort_values('sort_key')
                 except: pass
                 
                 fig2 = px.area(trend_df, x='월', y='총근무', markers=True)
@@ -810,7 +808,6 @@ elif menu == "⏰ 연장근무 관리":
             else:
                 st.info("데이터 없음")
 
-    # 2. 주간 추이 (삭제됨 - 월별 통합 집중)
     elif view_mode == "📈 주간 추이":
         st.info("주간 추이 기능은 월별 통합 관리에 집중하기 위해 제외되었습니다.")
 
