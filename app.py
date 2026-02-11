@@ -56,7 +56,7 @@ st.markdown("""
             font-weight: 500;
         }
 
-        /* 모던 헤더 */
+        /* [NEW] 모던 헤더 디자인 */
         .modern-header {
             background: white;
             padding: 25px 30px;
@@ -82,7 +82,7 @@ st.markdown("""
             font-weight: 500;
         }
 
-        /* KPI 카드 */
+        /* 커스텀 KPI 카드 */
         .kpi-card {
             background-color: white;
             border-radius: 16px;
@@ -386,13 +386,14 @@ if menu == "💰 예산 관리":
             final_balance = final_budget - final_spent
             
         else:
+            # 월별 이월 로직
             for m in range(1, target_month_idx + 1):
                 month_str = f"2026-{str(m).zfill(2)}"
                 
                 add_col = [c for c in df_budget.columns if str(m) in c and '추가' in c]
                 this_add = df_budget.loc[df_budget['팀명'] == team, add_col[0]].sum() if add_col else 0
                 
-                # 1월은 잔액 이월 없음
+                # 1월은 잔액 이월 없이 시작 (Reset)
                 if m == 1:
                      available = team_base_monthly + this_add
                 else:
@@ -401,7 +402,8 @@ if menu == "💰 예산 관리":
                 spent = monthly_exp[(monthly_exp['팀명'] == team) & (monthly_exp['월'] == month_str)]['금액'].sum()
                 current_month_balance = available - spent
                 
-                # 다음 달 이월 설정
+                # 다음 달 이월 설정 (1월 잔액도 이월하지 않으려면 여기서 0 처리 가능하지만, 
+                # 요청사항: "1월 초과/잔여는 다음달 영향 X" -> 즉 1월말 잔액을 0으로 리셋)
                 if m == 1:
                     cumulative_balance = 0
                 else:
@@ -421,9 +423,6 @@ if menu == "💰 예산 관리":
         })
 
     df_dash = pd.DataFrame(dashboard_rows)
-    
-    # [수정] 빈 팀 숨김 필터 제거 (모든 팀이 0원이라도 나오도록)
-    # if cat_main == "전체" and cat_sub == "전체": ... (제거됨)
     
     df_detail_filtered = df_expense.copy()
     if period_option != "전체 누적":
@@ -462,7 +461,7 @@ if menu == "💰 예산 관리":
 
     st.subheader("🏢 팀별 집행 현황")
     
-    # [수정] 원형 차트 삭제, 카드 그리드 2열 배치 (3개/3개)
+    # [수정] 빈 팀이어도 보여주기 (필터 제거)
     if not df_dash.empty:
         col_left, col_right = st.columns(2)
         
@@ -470,7 +469,6 @@ if menu == "💰 예산 관리":
             pct = min(row['집행률'], 100)
             status_color = "#3B82F6" if pct < 80 else ("#F59E0B" if pct < 100 else "#EF4444")
             
-            # [수정] '사용: 000' 강조
             card_html = f"""
                 <div style="background:white; padding:24px; border-radius:16px; margin-bottom:15px; box-shadow: 0px 4px 12px rgba(0,0,0,0.05); border:1px solid #E2E8F0;">
                     <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
@@ -542,7 +540,7 @@ if menu == "💰 예산 관리":
             st.info("내역이 없습니다.")
 
 # =============================================================================
-# [PART B] 연차 관리
+# [PART B] 연차 관리 (잔여율 중심)
 # =============================================================================
 elif menu == "🏖️ 연차 관리":
     if not leave_sheet_name:
@@ -665,7 +663,9 @@ elif menu == "🏖️ 연차 관리":
         <div class="custom-header">
             <div class="row-item">소속</div>
             <div class="row-item">성명</div>
-            <div class="row-item">잔여율</div>
+            <div class="row-item">총 연차</div>
+            <div class="row-item">{usage_header}</div>
+            <div class="row-item">잔여</div>
         </div>
     """, unsafe_allow_html=True)
     with st.container(height=500):
@@ -674,7 +674,9 @@ elif menu == "🏖️ 연차 관리":
                 <div class="custom-row">
                     <div class="row-item" style="color:#64748B;">{row['소속']}</div>
                     <div class="row-item"><strong>{row['성명']}</strong></div>
-                    <div class="row-item"><span class="badge badge-blue">{row['잔여율']:.1f}%</span></div>
+                    <div class="row-item">{row['합계']:.1f}</div>
+                    <div class="row-item">{row[display_usage_col]:.1f}</div>
+                    <div class="row-item"><span class="badge badge-blue">{row['잔여일수']:.1f}</span></div>
                 </div>
             """, unsafe_allow_html=True)
 
