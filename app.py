@@ -392,6 +392,7 @@ if menu == "💰 예산 관리":
                 add_col = [c for c in df_budget.columns if str(m) in c and '추가' in c]
                 this_add = df_budget.loc[df_budget['팀명'] == team, add_col[0]].sum() if add_col else 0
                 
+                # 1월은 잔액 이월 없음
                 if m == 1:
                      available = team_base_monthly + this_add
                 else:
@@ -400,6 +401,7 @@ if menu == "💰 예산 관리":
                 spent = monthly_exp[(monthly_exp['팀명'] == team) & (monthly_exp['월'] == month_str)]['금액'].sum()
                 current_month_balance = available - spent
                 
+                # 다음 달 이월 설정
                 if m == 1:
                     cumulative_balance = 0
                 else:
@@ -419,6 +421,9 @@ if menu == "💰 예산 관리":
         })
 
     df_dash = pd.DataFrame(dashboard_rows)
+    
+    # [수정] 빈 팀 숨김 필터 제거 (모든 팀이 0원이라도 나오도록)
+    # if cat_main == "전체" and cat_sub == "전체": ... (제거됨)
     
     df_detail_filtered = df_expense.copy()
     if period_option != "전체 누적":
@@ -444,7 +449,6 @@ if menu == "💰 예산 관리":
         tot_s = df_detail_filtered['금액'].sum()
         tot_r = 0
 
-    # [수정] KPI 5개로 확장 (총 집행률 추가)
     total_rate = (tot_s / tot_b * 100) if tot_b > 0 else 0
 
     c1, c2, c3, c4, c5 = st.columns(5)
@@ -457,7 +461,8 @@ if menu == "💰 예산 관리":
     st.divider()
 
     st.subheader("🏢 팀별 집행 현황")
-    # [수정] 2단 레이아웃 (Pie Chart 삭제)
+    
+    # [수정] 원형 차트 삭제, 카드 그리드 2열 배치 (3개/3개)
     if not df_dash.empty:
         col_left, col_right = st.columns(2)
         
@@ -465,6 +470,7 @@ if menu == "💰 예산 관리":
             pct = min(row['집행률'], 100)
             status_color = "#3B82F6" if pct < 80 else ("#F59E0B" if pct < 100 else "#EF4444")
             
+            # [수정] '사용: 000' 강조
             card_html = f"""
                 <div style="background:white; padding:24px; border-radius:16px; margin-bottom:15px; box-shadow: 0px 4px 12px rgba(0,0,0,0.05); border:1px solid #E2E8F0;">
                     <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
@@ -485,11 +491,9 @@ if menu == "💰 예산 관리":
             """
             
             if i % 2 == 0:
-                with col_left:
-                    st.markdown(card_html, unsafe_allow_html=True)
+                with col_left: st.markdown(card_html, unsafe_allow_html=True)
             else:
-                with col_right:
-                    st.markdown(card_html, unsafe_allow_html=True)
+                with col_right: st.markdown(card_html, unsafe_allow_html=True)
     else:
         st.info("데이터 없음")
 
@@ -538,7 +542,7 @@ if menu == "💰 예산 관리":
             st.info("내역이 없습니다.")
 
 # =============================================================================
-# [PART B] 연차 관리 (잔여율 중심)
+# [PART B] 연차 관리
 # =============================================================================
 elif menu == "🏖️ 연차 관리":
     if not leave_sheet_name:
