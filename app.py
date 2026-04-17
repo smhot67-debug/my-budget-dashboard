@@ -1,888 +1,1022 @@
-import streamlit as st
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-import re
-import qrcode
-from io import BytesIO
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
-
-# -----------------------------------------------------------------------------
-# 1. 시스템 설정 및 디자인
-# -----------------------------------------------------------------------------
-st.set_page_config(
-    page_title="통합 관리 시스템",
-    page_icon="🏢",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# [CSS] 프리미엄 UI 디자인
-st.markdown("""
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>연차 관리 대시보드</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
     <style>
-        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-        
-        .stApp {
-            font-family: 'Pretendard', sans-serif;
-            background-color: #F4F7FE;
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
         }
-        
-        h1, h2, h3, h4, h5, h6, p, div, span, label, button, input, select, textarea {
-            font-family: 'Pretendard', sans-serif;
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
         }
-
-        .material-symbols-rounded { font-family: 'Material Symbols Rounded' !important; }
-        .block-container { padding-top: 1.5rem; padding-bottom: 5rem; }
-
-        /* 카드 박스 스타일 */
-        div.css-1r6slb0, div.stDataFrame, div[data-testid="stMetric"] {
-            background-color: white;
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
             border-radius: 20px;
-            padding: 24px;
-            box-shadow: 0px 4px 20px rgba(112, 144, 176, 0.08);
-            border: none;
         }
-
-        /* 메트릭 숫자 */
-        div[data-testid="stMetricValue"] {
-            font-size: 2rem !important;
-            font-weight: 700 !important;
-            color: #2B3674;
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-        div[data-testid="stMetricLabel"] {
-            font-size: 0.95rem !important;
-            color: #A3AED0;
-            font-weight: 500;
-        }
-
-        /* 모던 헤더 */
-        .modern-header {
-            background: white;
-            padding: 25px 30px;
-            border-radius: 20px;
-            box-shadow: 0px 4px 20px rgba(112, 144, 176, 0.08);
-            margin-bottom: 25px;
-            border-left: 10px solid #4318FF;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-        }
-        .modern-header h1 {
-            margin: 0;
-            font-size: 1.8rem;
-            color: #2B3674;
-            font-weight: 800;
-            line-height: 1.2;
-        }
-        .modern-header p {
-            margin: 8px 0 0 0;
-            color: #A3AED0;
-            font-size: 1rem;
-            font-weight: 500;
-        }
-
-        /* KPI 카드 */
-        .kpi-card {
-            background-color: white;
-            border-radius: 16px;
-            padding: 24px;
-            box-shadow: 0px 4px 12px rgba(112, 144, 176, 0.08);
-            border: 1px solid #E2E8F0;
-            border-top: 5px solid #3B82F6;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-        .kpi-title { color: #64748B; font-size: 0.9rem; font-weight: 600; margin-bottom: 8px; }
-        .kpi-value { color: #1E293B; font-size: 2.2rem; font-weight: 800; letter-spacing: -1px; }
-        .kpi-sub { color: #94A3B8; font-size: 0.85rem; margin-top: 4px; font-weight: 500; }
-
-        /* 커스텀 리스트 행 */
-        .custom-row {
-            background-color: white;
-            border-bottom: 1px solid #F4F7FE;
-            padding: 16px 10px;
-            display: flex;
-            align-items: center;
-            transition: all 0.2s ease;
-            border-radius: 12px;
-            margin-bottom: 5px;
-        }
-        .custom-row:hover { background-color: #F4F7FE; transform: translateX(5px); }
-        
-        .custom-header {
-            background-color: #F4F7FE;
-            border-radius: 12px;
-            padding: 12px 10px;
-            font-weight: 600;
-            color: #A3AED0;
-            font-size: 0.85rem;
-            display: flex;
-            align-items: center;
-            margin-bottom: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .row-item { flex: 1; text-align: center; font-size: 0.95rem; color: #2B3674; font-weight: 500; }
-        .row-item-left { flex: 1; text-align: left; padding-left: 20px; font-size: 0.95rem; color: #2B3674; font-weight: 500; }
-        
-        /* 태그 */
-        .badge { padding: 6px 12px; border-radius: 30px; font-size: 0.75rem; font-weight: 700; }
-        .badge-red { background-color: #FEE2E2; color: #DC2626; }
-        .badge-blue { background-color: #E0E7FF; color: #4318FF; }
-        .badge-gray { background-color: #F4F7FE; color: #A3AED0; }
-        
-        /* 합계 박스 */
-        .total-box {
-            background: linear-gradient(135deg, #868CFF 0%, #4318FF 100%);
-            border-radius: 20px;
-            padding: 25px;
-            margin-bottom: 25px;
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            color: white;
-            box-shadow: 0px 10px 20px rgba(67, 24, 255, 0.2);
-        }
-        .total-label { font-size: 0.9rem; color: #E9E3FF; margin-bottom: 5px; display: block; text-align: center; font-weight: 500;}
-        .total-value { font-size: 1.5rem; font-weight: 700; color: white; display: block; text-align: center;}
-        
-        /* 사이드바 */
-        [data-testid="stSidebar"] {
-            background-color: white;
-            box-shadow: 4px 0px 20px rgba(112, 144, 176, 0.05);
-            border-right: none;
-        }
-
-        /* 탭 버튼 스타일 */
-        div.row-widget.stRadio > div {
-            background-color: white;
-            padding: 10px;
-            border-radius: 20px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            border: 1px solid #E2E8F0;
-            margin-bottom: 20px;
-            margin-top: 10px;
-        }
-        div.row-widget.stRadio > div[role="radiogroup"] > label {
-            flex: 1;
-            background-color: transparent;
-            border-radius: 15px;
-            padding: 15px 0;
-            text-align: center;
-            transition: all 0.3s ease;
-            cursor: pointer;
-            border: 2px solid transparent;
-            margin-right: 0 !important;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        div.row-widget.stRadio > div[role="radiogroup"] > label:hover {
-            background-color: #F8FAFC;
-            color: #4318FF;
-            transform: translateY(-2px);
-        }
-        div.row-widget.stRadio > div[role="radiogroup"] > label[data-checked="true"] {
-            background-color: #4318FF;
-            color: white !important;
-            box-shadow: 0 8px 20px rgba(67, 24, 255, 0.3);
-            transform: translateY(-2px);
-        }
-        div.row-widget.stRadio > div[role="radiogroup"] > label p {
-            font-size: 1.2rem !important;
-            font-weight: 700 !important;
-            margin: 0 !important;
-        }
-        div.row-widget.stRadio > div[role="radiogroup"] > label[data-checked="false"] p {
-            color: #A3AED0 !important;
+        .animate-fadeIn {
+            animation: fadeIn 0.5s ease-out forwards;
         }
     </style>
-""", unsafe_allow_html=True)
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans">
+    <div id="root"></div>
 
-# 구글 시트 주소
-SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6hnNtH_1tBFJoA25lXzFPjKUGpBfu0H313_QVFDPdHOpWDDQSJQvIlOQpUoczNO7z7jyWbE171ApD/pub?output=xlsx"
+    <script type="text/babel">
+        const { useState, useRef, useEffect, useMemo } = React;
 
-# -----------------------------------------------------------------------------
-# 2. 데이터 로드 및 유틸리티
-# -----------------------------------------------------------------------------
-@st.cache_data(ttl=60)
-def load_all_data():
-    try:
-        sheets = pd.read_excel(SHEET_URL, sheet_name=None, engine='openpyxl')
-        return sheets
-    except Exception as e:
-        return None
+        // --- Icons ---
+        const IconBase = ({ children, size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                {children}
+            </svg>
+        );
 
-def clean_dept_name(name):
-    if pd.isna(name): return ""
-    return re.sub(r'^[\d\.\s]+', '', str(name))
+        const Umbrella = (props) => <IconBase {...props}><path d="M22 12a10.06 10.06 1 0 0-20 0Z"/><path d="M12 12v8a2 2 0 0 0 4 0"/><path d="M12 2v1"/></IconBase>;
+        const Sun = (props) => <IconBase {...props}><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></IconBase>;
+        const Calendar = (props) => <IconBase {...props}><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></IconBase>;
+        const DollarSign = (props) => <IconBase {...props}><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></IconBase>;
+        const TrendingUp = (props) => <IconBase {...props}><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></IconBase>;
+        const AlertTriangle = (props) => <IconBase {...props}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></IconBase>;
+        const CheckCircle = (props) => <IconBase {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></IconBase>;
+        const Menu = (props) => <IconBase {...props}><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></IconBase>;
+        const X = (props) => <IconBase {...props}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></IconBase>;
+        const Search = (props) => <IconBase {...props}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></IconBase>;
+        const Download = (props) => <IconBase {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></IconBase>;
+        const Printer = (props) => <IconBase {...props}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></IconBase>;
+        const Users = (props) => <IconBase {...props}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></IconBase>;
+        const Briefcase = (props) => <IconBase {...props}><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></IconBase>;
+        const ChevronRight = (props) => <IconBase {...props}><path d="m9 18 6-6-6-6"/></IconBase>;
+        const FileSpreadsheet = (props) => <IconBase {...props}><path d="M4 22h14a2 2 0 0 0 2-2V7.5L14.5 2H6a2 2 0 0 0-2 2v4"/><path d="M14 2v6h6"/><path d="M8 12h8"/><path d="M8 16h8"/><path d="M8 20h8"/></IconBase>;
+        const UploadCloud = (props) => <IconBase {...props}><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/></IconBase>;
+        const Target = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></IconBase>;
+        const RefreshCw = (props) => <IconBase {...props}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></IconBase>;
+        const Lock = (props) => <IconBase {...props}><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></IconBase>;
 
-def safe_numeric(series):
-    if series.dtype == 'object':
-        return pd.to_numeric(series.astype(str).str.replace(',', ''), errors='coerce').fillna(0)
-    else:
-        return pd.to_numeric(series, errors='coerce').fillna(0)
+        // --- CONSTANTS ---
+        const AVG_DAILY_WAGE = 100000; 
+        const EXCLUDED_DEPTS = ['성남공장', '델리하임', '기타', '대상델리하임'];
 
-# [Helper] 전월 구하기 (자동 필터용)
-def get_default_month_index(options):
-    today = datetime.now()
-    prev_month = today - relativedelta(months=1)
-    prev_month_str = f"2026-{prev_month.strftime('%m')}" 
-    
-    for i, opt in enumerate(options):
-        if prev_month_str in opt:
-            return i
-    return 0 
+        // --- Initial Mock Data ---
+        const initialMonthlyTrend = [
+            { month: '1월', rate: 15, liability: 1.24 },
+            { month: '2월', rate: 20, liability: 1.20 },
+            { month: '3월', rate: 18, liability: 1.18 },
+            { month: '4월', rate: 25, liability: 1.15 },
+            { month: '5월', rate: 35, liability: 1.10 },
+            { month: '6월', rate: 40, liability: 1.05 },
+        ];
 
-all_sheets = load_all_data()
+        const initialDeptData = [
+            { name: 'R&D센터', usageRate: 18, liability: 380000000, employees: 45, avgRemaining: 14.8, status: 'Critical' },
+            { name: '생산본부', usageRate: 32, liability: 450000000, employees: 80, avgRemaining: 12.5, status: 'Warning' },
+            { name: '국내영업팀', usageRate: 48, liability: 150000000, employees: 25, avgRemaining: 8.1, status: 'Normal' },
+            { name: '마케팅본부', usageRate: 65, liability: 120000000, employees: 18, avgRemaining: 5.2, status: 'Good' },
+            { name: '경영지원팀', usageRate: 72, liability: 85000000, employees: 12, avgRemaining: 4.5, status: 'Good' },
+        ];
 
-if not all_sheets:
-    st.error("데이터 로드 실패. 구글 시트 연결을 확인해주세요.")
-    if st.button("🔄 데이터 다시 불러오기"):
-        st.cache_data.clear()
-        st.rerun()
-    st.stop()
+        const initialRiskData = [
+            { name: '김철수', dept: 'R&D S/W', used: 2, remaining: 23, reason: '잔여 20일 이상' },
+            { name: '이영희', dept: '해외영업', used: 3.5, remaining: 18, reason: '잔여 15일 이상' },
+            { name: '박준형', dept: '생산관리', used: 4, remaining: 16, reason: '잔여 15일 이상' },
+            { name: '최민수', dept: '생산본부', used: 1, remaining: 25, reason: '잔여 25일 이상' },
+            { name: '정수민', dept: '경영지원팀', used: 5, remaining: 15, reason: '잔여 15일 이상' },
+        ];
 
-# 시트 이름 매핑
-sheet_keys = list(all_sheets.keys())
-budget_sheet_name = next((s for s in sheet_keys if '기준' in s or 'Budget' in s), None)
-expense_sheet_name = next((s for s in sheet_keys if '지출' in s or 'Expense' in s), None)
-leave_sheet_name = next((s for s in sheet_keys if '원천' in s or 'Leave' in s), None)
-overtime_sheet_name = next((s for s in sheet_keys if '연장' in s or 'Overtime' in s or '근무' in s), None)
+        const initialPromotionEvents = [
+            { date: '2/14 (금)', name: '샌드위치 데이', impact: 'High', savings: '₩1,500만' },
+            { date: '2/28 (금)', name: '전사 리프레시 데이', impact: 'Medium', savings: '₩800만' },
+            { date: '3/10 (월)', name: '창립기념일 대체휴무', impact: 'High', savings: '₩1,200만' },
+        ];
 
-# [마스터 데이터]
-master_teams = ["전체 팀"]
-if budget_sheet_name:
-    df_bm = all_sheets[budget_sheet_name].fillna(0)
-    if '팀명' in df_bm.columns:
-        teams = sorted(df_bm['팀명'].astype(str).unique())
-        teams = [t for t in teams if t != '0' and t != 'nan']
-        master_teams = ["전체 팀"] + teams
+        // --- Logic: Data Processing ---
+        const processRawData = (rawData) => {
+            const deptMap = {};
+            const riskList = [];
+            const monthSums = Array(12).fill(0);
+            let totalEntitlement = 0;
 
-current_year = datetime.now().year
-master_months_list = [f"2026-{str(m).zfill(2)}" for m in range(1, 13)]
-master_months = ["전체 누적"] + master_months_list 
-
-# -----------------------------------------------------------------------------
-# 3. 사이드바 및 공통
-# -----------------------------------------------------------------------------
-with st.sidebar:
-    st.title("통합 관리 시스템")
-    st.markdown("---")
-    menu = st.radio("MAIN MENU", ["💰 예산 관리", "🏖️ 연차 관리", "⏰ 연장근무 관리"])
-    st.markdown("---")
-    
-    if st.button("🔄 데이터 새로고침", use_container_width=True):
-        st.cache_data.clear()
-        st.rerun()
-    st.caption("※ 시트 수정 후 1~5분 뒤 반영됩니다.")
-    st.markdown("---")
-    
-    try:
-        import qrcode
-        has_qrcode = True
-    except ImportError:
-        has_qrcode = False
-
-    with st.expander("📱 모바일 접속 QR"):
-        if has_qrcode:
-            st.caption("Scan to access")
-            default_url = "https://my-budget-dashboard-ebrzrzbmslu8xh6dphqtin.streamlit.app/"
-            app_url = st.text_input("URL", value=default_url)
-            if app_url:
-                try:
-                    qr = qrcode.QRCode(box_size=10, border=1)
-                    qr.add_data(app_url)
-                    qr.make(fit=True)
-                    img = qr.make_image(fill_color="black", back_color="white")
-                    buffer = BytesIO()
-                    img.save(buffer, format="PNG")
-                    st.image(buffer, use_container_width=True)
-                except: pass
-
-# =============================================================================
-# [PART A] 예산 관리
-# =============================================================================
-if menu == "💰 예산 관리":
-    if not budget_sheet_name or not expense_sheet_name:
-        st.error("예산 시트가 없습니다.")
-        st.stop()
-
-    df_budget = all_sheets[budget_sheet_name].fillna(0)
-    df_budget.columns = [str(c).strip() for c in df_budget.columns]
-    for col in df_budget.columns:
-        if col != '팀명': df_budget[col] = safe_numeric(df_budget[col])
-    
-    df_budget = df_budget[df_budget['팀명'].astype(str) != '0']
-
-    base_col = next((c for c in df_budget.columns if '배정' in c or '기본' in c), None)
-    if base_col:
-        df_budget['월기본예산'] = df_budget[base_col]
-    else:
-        num_cols = df_budget.select_dtypes(include=['number']).columns
-        df_budget['월기본예산'] = df_budget[num_cols[0]] if len(num_cols) > 0 else 0
-
-    df_expense = all_sheets[expense_sheet_name].fillna(0)
-    df_expense.columns = [str(c).strip() for c in df_expense.columns]
-    
-    date_col = next((c for c in df_expense.columns if '날짜' in c or 'Date' in c), None)
-    if date_col:
-        df_expense[date_col] = pd.to_datetime(df_expense[date_col], errors='coerce')
-        df_expense['월'] = df_expense[date_col].dt.strftime('%Y-%m') 
-        df_expense['월_숫자'] = df_expense[date_col].dt.month
-    else:
-        df_expense['월'] = 'Unknown'
-        df_expense['월_숫자'] = 0
-    
-    if '금액' in df_expense.columns:
-        df_expense['금액'] = safe_numeric(df_expense['금액'])
-    
-    df_expense = df_expense[df_expense['금액'] != 0]
-
-    with st.sidebar:
-        st.subheader("Filter")
-        default_idx = get_default_month_index(master_months)
-        period_option = st.selectbox("기간", master_months, index=default_idx)
-        
-        team_option = st.selectbox("부서", master_teams)
-        
-        main_cats = ["전체"] + sorted(df_expense['대분류'].astype(str).unique())
-        cat_main = st.selectbox("대분류", main_cats)
-        sub_cats = ["전체"]
-        if cat_main != "전체":
-            sub_cats += sorted(df_expense[df_expense['대분류'] == cat_main]['소분류'].astype(str).unique())
-        cat_sub = st.selectbox("소분류", sub_cats)
-
-    monthly_exp = df_expense.groupby(['팀명', '월'])['금액'].sum().reset_index()
-    dashboard_rows = []
-    
-    target_teams = df_budget['팀명'].unique() if team_option == "전체 팀" else [team_option]
-    
-    # 당월/누계 연산 로직
-    for team in target_teams:
-        team_base_monthly = df_budget.loc[df_budget['팀명'] == team, '월기본예산'].sum()
-        
-        is_cumulative_view = (period_option == "전체 누적")
-        target_month_idx = 12
-        if not is_cumulative_view:
-            try: target_month_idx = int(period_option.split('-')[1])
-            except: target_month_idx = 1
-        
-        cum_budget = 0
-        cum_spent = 0
-        cur_budget_added = 0
-        cur_spent = 0
-        
-        for m in range(1, target_month_idx + 1):
-            month_str = f"2026-{str(m).zfill(2)}"
-            
-            add_col = [c for c in df_budget.columns if str(m) in c and '추가' in c]
-            this_add = df_budget.loc[df_budget['팀명'] == team, add_col[0]].sum() if add_col else 0
-            
-            spent = monthly_exp[(monthly_exp['팀명'] == team) & (monthly_exp['월'] == month_str)]['금액'].sum()
-            
-            cum_budget += (team_base_monthly + this_add)
-            cum_spent += spent
-            
-            if m == target_month_idx:
-                cur_budget_added = team_base_monthly + this_add
-                cur_spent = spent
-
-        cum_balance = cum_budget - cum_spent
-        cum_rate = (cum_spent / cum_budget * 100) if cum_budget > 0 else 0
-        
-        if is_cumulative_view:
-            cur_budget_total = cum_budget
-            cur_balance = cum_balance
-            cur_rate = cum_rate
-        else:
-            # 이월액 계산 (전월까지의 누계 예산 - 누계 지출)
-            if target_month_idx == 1:
-                carry_over = 0
-            else:
-                prev_cum_budget = cum_budget - cur_budget_added
-                prev_cum_spent = cum_spent - cur_spent
-                carry_over = prev_cum_budget - prev_cum_spent
-            
-            cur_budget_total = cur_budget_added + carry_over
-            cur_balance = cur_budget_total - cur_spent
-            cur_rate = (cur_spent / cur_budget_total * 100) if cur_budget_total > 0 else 0
-
-        dashboard_rows.append({
-            '팀명': team,
-            '누계_예산': cum_budget,
-            '누계_사용액': cum_spent,
-            '누계_잔액': cum_balance,
-            '누계_집행률': cum_rate,
-            '당월_예산': cur_budget_total,
-            '당월_사용액': cur_spent,
-            '당월_잔액': cur_balance,
-            '당월_집행률': cur_rate,
-            'is_공통': 1 if "공통" in str(team) else 0  # 공통운영비 상단 정렬용
-        })
-
-    df_dash = pd.DataFrame(dashboard_rows)
-    # 정렬: 공통운영비가 가장 먼저 오고, 그 다음 팀명 순
-    if not df_dash.empty:
-        df_dash = df_dash.sort_values(by=['is_공통', '팀명'], ascending=[False, True]).reset_index(drop=True)
-    
-    df_detail_filtered = df_expense.copy()
-    if period_option != "전체 누적":
-        df_detail_filtered = df_detail_filtered[df_detail_filtered['월'] == period_option]
-    if team_option != "전체 팀":
-        df_detail_filtered = df_detail_filtered[df_detail_filtered['팀명'] == team_option]
-    if cat_main != "전체": df_detail_filtered = df_detail_filtered[df_detail_filtered['대분류'] == cat_main]
-    if cat_sub != "전체": df_detail_filtered = df_detail_filtered[df_detail_filtered['소분류'] == cat_sub]
-
-    st.markdown(f"""
-        <div class="modern-header">
-            <h1>💰 예산 관리 대시보드</h1>
-            <p>Status: {team_option} / {period_option}</p>
-        </div>
-    """, unsafe_allow_html=True)
-    
-    if cat_main == "전체":
-        tot_b = df_dash['당월_예산'].sum()
-        tot_s = df_dash['당월_사용액'].sum()
-        tot_r = df_dash['당월_잔액'].sum()
-    else:
-        tot_b = 0
-        tot_s = df_detail_filtered['금액'].sum()
-        tot_r = 0
-
-    total_rate = (tot_s / tot_b * 100) if tot_b > 0 else 0
-
-    c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("가용 예산 (이월포함)", f"{tot_b:,.0f}원")
-    c2.metric("총 사용액", f"{tot_s:,.0f}원")
-    c3.metric("총 집행률", f"{total_rate:.1f}%", delta="Status")
-    c4.metric("현재 잔액", f"{tot_r:,.0f}원", delta="Remain")
-    c5.metric("지출 건수", f"{len(df_detail_filtered):,}건")
-
-    st.divider()
-
-    st.subheader("🏢 팀별 집행 현황 (당월 & 누계)")
-    
-    if not df_dash.empty:
-        records = df_dash.to_dict('records')
-        split_idx = (len(records) + 1) // 2 
-        left_data = records[:split_idx]
-        right_data = records[split_idx:]
-        
-        col_left, col_right = st.columns(2)
-        
-        def render_card(row):
-            is_common = row['is_공통'] == 1
-            header_color = "#8B5CF6" if is_common else "#3B82F6" # 공통운영비는 보라색
-            team_label = f"⭐ {row['팀명']}" if is_common else row['팀명']
-            
-            cur_pct = min(row['당월_집행률'], 100)
-            cum_pct = min(row['누계_집행률'], 100)
-            
-            cur_status_color = "#3B82F6" if cur_pct < 80 else ("#F59E0B" if cur_pct < 100 else "#EF4444")
-            cum_status_color = "#3B82F6" if cum_pct < 80 else ("#F59E0B" if cum_pct < 100 else "#EF4444")
-
-            return f"""
-                <div style="background:white; padding:24px; border-radius:16px; margin-bottom:20px; box-shadow: 0px 4px 12px rgba(0,0,0,0.05); border:1px solid #E2E8F0; border-top: 5px solid {header_color};">
-                    <div style="margin-bottom:15px;">
-                        <span style="font-weight:800; color:#1E293B; font-size:1.2rem;">{team_label}</span>
-                    </div>
-
-                    <div style="margin-bottom: 20px;">
-                        <div style="display:flex; justify-content:space-between; font-size: 0.9rem; margin-bottom: 6px;">
-                            <span style="color:#64748B; font-weight:700;">당월 실적 (이월포함)</span>
-                            <span style="font-weight:800; color:{cur_status_color};">{row['당월_집행률']:.1f}%</span>
-                        </div>
-                        <div style="width:100%; background-color:#F1F5F9; height:8px; border-radius:4px; margin-bottom:10px;">
-                            <div style="width:{cur_pct}%; background-color:{cur_status_color}; height:8px; border-radius:4px;"></div>
-                        </div>
-                        <div style="display:flex; justify-content:space-between; font-size:0.85rem; color:#64748B;">
-                            <span>예산: {row['당월_예산']:,.0f}</span>
-                            <span>사용: <strong style="color:#1E293B;">{row['당월_사용액']:,.0f}</strong></span>
-                            <span>잔액: <strong style="color:{cur_status_color};">{row['당월_잔액']:,.0f}</strong></span>
-                        </div>
-                    </div>
-
-                    <div style="border-top: 1px dashed #E2E8F0; margin: 15px 0;"></div>
-
-                    <div>
-                        <div style="display:flex; justify-content:space-between; font-size: 0.9rem; margin-bottom: 6px;">
-                            <span style="color:#64748B; font-weight:700;">누계 실적 (1월 ~ 현재)</span>
-                            <span style="font-weight:800; color:{cum_status_color};">{row['누계_집행률']:.1f}%</span>
-                        </div>
-                        <div style="width:100%; background-color:#F1F5F9; height:8px; border-radius:4px; margin-bottom:10px;">
-                            <div style="width:{cum_pct}%; background-color:{cum_status_color}; height:8px; border-radius:4px;"></div>
-                        </div>
-                        <div style="display:flex; justify-content:space-between; font-size:0.85rem; color:#64748B;">
-                            <span>예산: {row['누계_예산']:,.0f}</span>
-                            <span>사용: <strong style="color:#1E293B;">{row['누계_사용액']:,.0f}</strong></span>
-                            <span>잔액: <strong style="color:{cum_status_color};">{row['누계_잔액']:,.0f}</strong></span>
-                        </div>
-                    </div>
-                </div>
-            """
-
-        with col_left:
-            for row in left_data:
-                st.markdown(render_card(row), unsafe_allow_html=True)
+            rawData.forEach(row => {
+                const deptName = row['소속'] || '기타';
                 
-        with col_right:
-            for row in right_data:
-                st.markdown(render_card(row), unsafe_allow_html=True)
-    else:
-        st.info("데이터 없음")
+                if (EXCLUDED_DEPTS.includes(deptName)) return;
 
-    st.subheader("📝 상세 지출 내역 (보안)")
-    
-    if 'budget_auth' not in st.session_state:
-        st.session_state['budget_auth'] = False
-        
-    if not st.session_state['budget_auth']:
-        col_pw1, col_pw2 = st.columns([2, 3])
-        with col_pw1:
-            pwd = st.text_input("관리자 비밀번호를 입력하세요", type="password")
-            if pwd == "7026":
-                st.session_state['budget_auth'] = True
-                st.rerun()
-            elif pwd:
-                st.error("비밀번호가 올바르지 않습니다.")
-    else:
-        if not df_detail_filtered.empty:
-            df_show = df_detail_filtered.sort_values('날짜', ascending=False).reset_index(drop=True)
-            st.markdown("""
-                <div class="custom-header">
-                    <div class="row-item">날짜</div>
-                    <div class="row-item">부서</div>
-                    <div class="row-item">대분류</div>
-                    <div class="row-item">소분류</div>
-                    <div class="row-item-left" style="flex:2;">적요</div>
-                    <div class="row-item" style="text-align:right; padding-right:20px;">금액</div>
-                </div>
-            """, unsafe_allow_html=True)
-            with st.container(height=400):
-                for _, row in df_show.iterrows():
-                    date_str = row['날짜'].strftime('%Y-%m-%d')
-                    amt_str = f"{int(row['금액']):,}"
-                    st.markdown(f"""
-                        <div class="custom-row">
-                            <div class="row-item" style="color:#64748B; font-size:0.85rem;">{date_str}</div>
-                            <div class="row-item"><strong>{row['팀명']}</strong></div>
-                            <div class="row-item"><span class="badge badge-gray">{row['대분류']}</span></div>
-                            <div class="row-item"><span class="badge badge-gray">{row['소분류']}</span></div>
-                            <div class="row-item-left" style="flex:2; color:#334155;">{row['상세내역']}</div>
-                            <div class="row-item" style="text-align:right; padding-right:20px; font-weight:bold; color:#1E293B;">{amt_str}원</div>
-                        </div>
-                    """, unsafe_allow_html=True)
-        else:
-            st.info("내역이 없습니다.")
-
-# =============================================================================
-# [PART B] 연차 관리 (잔여율 중심)
-# =============================================================================
-elif menu == "🏖️ 연차 관리":
-    if not leave_sheet_name:
-        st.error("연차 데이터 시트가 없습니다.")
-        st.stop()
-
-    df_leave = all_sheets[leave_sheet_name].fillna(0)
-    df_leave['소속'] = df_leave['소속'].apply(clean_dept_name)
-    
-    # 대상델리하임 제외
-    df_leave = df_leave[df_leave['소속'] != '대상델리하임']
-
-    for col in ['합계', '사용일수', '잔여일수', '부채예산', '부채잔액']:
-        if col in df_leave.columns: df_leave[col] = safe_numeric(df_leave[col])
-        
-    df_leave['잔여율'] = df_leave.apply(lambda x: (x['잔여일수'] / x['합계'] * 100) if x['합계'] > 0 else 0, axis=1)
-
-    with st.sidebar:
-        st.subheader("Filter")
-        default_idx = get_default_month_index(master_months)
-        leave_period_option = st.selectbox("기간(월)", master_months, index=default_idx)
-        
-        dept_list = master_teams 
-        leave_dept_option = st.selectbox("소속 부서", dept_list)
-        risk_criteria = st.slider("촉진 대상 기준 (잔여일)", 5, 25, 10)
-
-    if leave_dept_option != "전체 팀":
-        df_leave = df_leave[df_leave['소속'] == leave_dept_option]
-
-    if leave_period_option != "전체 누적":
-        target_col = leave_period_option.split('-')[1] + "월"
-        if target_col not in df_leave.columns:
-             try: target_col = f"{int(leave_period_option.split('-')[1])}월"
-             except: pass
-             
-        if target_col in df_leave.columns:
-             df_leave['당월사용'] = safe_numeric(df_leave[target_col])
-             display_usage_col = '당월사용'
-        else:
-             st.warning(f"'{target_col}' 데이터가 없습니다. 누적 사용량으로 표시합니다.")
-             display_usage_col = '사용일수'
-    else:
-        display_usage_col = '사용일수'
-
-    df_risk = df_leave[df_leave['잔여일수'] >= risk_criteria].sort_values('잔여율', ascending=False)
-    
-    total_used = df_leave[display_usage_col].sum()
-    total_remain = df_leave['잔여일수'].sum()
-    
-    avg_usage = (total_used / df_leave['합계'].sum() * 100) if df_leave['합계'].sum() > 0 else 0
-
-    st.markdown(f"""
-        <div class="modern-header">
-            <h1>🏖️ 연차 관리 대시보드</h1>
-            <p>Status: {leave_dept_option} / {leave_period_option}</p>
-        </div>
-    """, unsafe_allow_html=True)
-
-    k1, k2, k3, k4 = st.columns(4)
-    k1.metric(f"소진율 ({leave_period_option})", f"{avg_usage:.1f}%", delta="Goal 50%")
-    k2.metric("총 사용 연차", f"{total_used:,.1f}일")
-    k3.metric("총 잔여 연차", f"{total_remain:,.1f}일")
-    k4.metric("촉진 대상자", f"{len(df_risk)}명", f"> {risk_criteria} days", delta_color="inverse")
-
-    st.divider()
-
-    c_chart, c_risk = st.columns([4, 6])
-    with c_chart:
-        st.subheader("📊 부서별 소진율")
-        dept_sum = df_leave.groupby('소속').agg({display_usage_col:'sum', '합계':'sum'}).reset_index()
-        dept_sum['소진율'] = (dept_sum[display_usage_col] / dept_sum['합계'] * 100).fillna(0)
-        fig = px.bar(dept_sum, x='소속', y='소진율', text=dept_sum['소진율'].apply(lambda x: f"{x:.1f}%"), color='소진율', color_continuous_scale='Bluyl')
-        fig.update_traces(textfont_color='white', textposition='auto')
-        fig.update_layout(xaxis_title=None, yaxis_title="소진율(%)", height=450, paper_bgcolor='white', plot_bgcolor='white')
-        st.plotly_chart(fig, use_container_width=True)
-
-    with c_risk:
-        st.subheader(f"🚨 촉진 대상자 (High Residual Rate)")
-        if not df_risk.empty:
-            r_tot = df_risk['합계'].sum()
-            r_use = df_risk['사용일수'].sum()
-            r_rem = df_risk['잔여일수'].sum()
-            r_rate = (r_rem / r_tot * 100) if r_tot > 0 else 0 
-            
-            st.markdown(f"""
-                <div class="total-box">
-                    <div><span class="total-label">대상자 총 연차</span><span class="total-value">{r_tot:,.1f}</span></div>
-                    <div><span class="total-label">사용 총계</span><span class="total-value">{r_use:,.1f}</span></div>
-                    <div><span class="total-label">잔여 총계</span><span class="total-value" style="color:#FCA5A5;">{r_rem:,.1f}</span></div>
-                    <div><span class="total-label">평균 잔여율</span><span class="total-value">{r_rate:.1f}%</span></div>
-                </div>
-            """, unsafe_allow_html=True)
-            
-            st.markdown("""
-                <div class="custom-header">
-                    <div class="row-item">성명/직급</div>
-                    <div class="row-item">소속</div>
-                    <div class="row-item">잔여율</div>
-                    <div class="row-item">비고</div>
-                </div>
-            """, unsafe_allow_html=True)
-
-            with st.container(height=300):
-                for _, row in df_risk.iterrows():
-                    st.markdown(f"""
-                        <div class="custom-row">
-                            <div class="row-item"><strong>{row['성명']}</strong></div>
-                            <div class="row-item" style="color:#64748B;">{row['소속']}</div>
-                            <div class="row-item"><span class="badge badge-red">{row['잔여율']:.1f}%</span></div>
-                            <div class="row-item" style="font-size:0.8rem; color:#94A3B8;">잔여 {row['잔여일수']:.1f}일</div>
-                        </div>
-                    """, unsafe_allow_html=True)
-        else:
-            st.success("대상자 없음")
-
-    st.divider()
-    st.subheader("👥 전체 임직원 명부")
-    df_show = df_leave.sort_values('소속').copy()
-    
-    st.markdown("""
-        <div class="custom-header">
-            <div class="row-item">소속</div>
-            <div class="row-item">성명</div>
-            <div class="row-item">잔여율</div>
-        </div>
-    """, unsafe_allow_html=True)
-    with st.container(height=500):
-        for _, row in df_show.iterrows():
-            st.markdown(f"""
-                <div class="custom-row">
-                    <div class="row-item" style="color:#64748B;">{row['소속']}</div>
-                    <div class="row-item"><strong>{row['성명']}</strong></div>
-                    <div class="row-item"><span class="badge badge-blue">{row['잔여율']:.1f}%</span></div>
-                </div>
-            """, unsafe_allow_html=True)
-
-# =============================================================================
-# [PART C] 연장근무 관리
-# =============================================================================
-elif menu == "⏰ 연장근무 관리":
-    if not overtime_sheet_name:
-        st.error("연장근무 시트를 찾을 수 없습니다.")
-        st.stop()
-
-    df_ot = all_sheets[overtime_sheet_name].fillna(0)
-    df_ot.columns = [str(c).replace(' ','').strip() for c in df_ot.columns]
-    
-    df_ot['팀명'] = df_ot['팀명'].replace('지원팀', '경영지원팀')
-    df_ot = df_ot[~df_ot['팀명'].isin(['생산팀', '대상델리하임'])]
-    
-    if '팀명' in df_ot.columns:
-        df_ot['팀명'] = df_ot['팀명'].astype(str)
-
-    month_col = next((c for c in df_ot.columns if c == '월' or c == 'Month'), None)
-    if month_col:
-        df_ot.rename(columns={month_col: '월'}, inplace=True)
-        df_ot['월'] = df_ot['월'].astype(str)
-    else:
-        df_ot['월'] = 'Unknown'
-
-    num_cols = ['연장시간', '연장근로', '야근시간', '휴일시간']
-    valid_num_cols = []
-    for c in df_ot.columns:
-        if any(x in c for x in num_cols):
-            df_ot[c] = safe_numeric(df_ot[c])
-            valid_num_cols.append(c)
-    
-    df_ot['총근무'] = df_ot[valid_num_cols].sum(axis=1)
-
-    with st.sidebar:
-        st.subheader("Filter")
-        default_idx = get_default_month_index(master_months)
-        ot_month_opt = st.selectbox("조회 기간", master_months, index=default_idx)
-
-        filtered_teams = sorted(df_ot['팀명'].unique())
-        ot_team_opt = st.selectbox("소속 팀", ["전체 팀"] + filtered_teams)
-        target_ratio = st.slider("전년 대비 목표 (%)", 80, 120, 90)
-
-    df_filtered = df_ot.copy()
-    if ot_month_opt != "전체 누적":
-        df_filtered = df_filtered[df_filtered['월'] == ot_month_opt]
-    if ot_team_opt != "전체 팀":
-        df_filtered = df_filtered[df_filtered['팀명'] == ot_team_opt]
-
-    st.markdown(f"""
-        <div class="modern-header">
-            <h1>⏰ 연장근무 관리</h1>
-            <p>Status: {ot_team_opt} / {ot_month_opt}</p>
-        </div>
-    """, unsafe_allow_html=True)
-
-    view_mode = st.radio("VIEW MODE", ["📊 통합 현황", "📈 주간 추이"], horizontal=True, label_visibility="collapsed")
-    st.markdown("---")
-
-    total_sum = df_filtered['총근무'].sum()
-    ext_sum = df_filtered[[c for c in df_ot.columns if '연장' in c]].sum().sum()
-    night_sum = df_filtered[[c for c in df_ot.columns if '야근' in c]].sum().sum()
-    hol_sum = df_filtered[[c for c in df_ot.columns if '휴일' in c]].sum().sum()
-    
-    ext_ratio = (ext_sum / total_sum * 100) if total_sum > 0 else 0
-    night_ratio = (night_sum / total_sum * 100) if total_sum > 0 else 0
-    hol_ratio = (hol_sum / total_sum * 100) if total_sum > 0 else 0
-
-    target_val = total_sum * (target_ratio / 100)
-
-    if view_mode == "📊 통합 현황":
-        st.subheader("통합 연장근무 현황")
-        
-        k1, k2, k3, k4 = st.columns(4)
-        with k1:
-            st.markdown(f"""<div class="kpi-card" style="border-top-color: #4F46E5;"><div class="kpi-title">총 근무시간</div><div class="kpi-value">{total_sum:,.1f}h</div><div class="kpi-sub">Total Overtime</div></div>""", unsafe_allow_html=True)
-        with k2:
-            st.markdown(f"""<div class="kpi-card" style="border-top-color: #3B82F6;"><div class="kpi-title">연장 근로</div><div class="kpi-value">{ext_sum:,.1f}h</div><div class="kpi-sub">{ext_ratio:.1f}% (Blue)</div></div>""", unsafe_allow_html=True)
-        with k3:
-            st.markdown(f"""<div class="kpi-card" style="border-top-color: #EF4444;"><div class="kpi-title">야간 근로</div><div class="kpi-value">{night_sum:,.1f}h</div><div class="kpi-sub">{night_ratio:.1f}% (Red)</div></div>""", unsafe_allow_html=True)
-        with k4:
-            st.markdown(f"""<div class="kpi-card" style="border-top-color: #0EA5E9;"><div class="kpi-title">휴일 근로</div><div class="kpi-value">{hol_sum:,.1f}h</div><div class="kpi-sub">{hol_ratio:.1f}% (Sky)</div></div>""", unsafe_allow_html=True)
-
-        st.markdown("---")
-        
-        c1, c2 = st.columns([1, 1])
-        with c1:
-            st.markdown("##### 🏢 팀별 근무 유형 비교")
-            
-            chart_teams = [t for t in filtered_teams] if ot_team_opt == "전체 팀" else [ot_team_opt]
-            df_agg = df_filtered.groupby('팀명')[valid_num_cols].sum().reset_index()
-            df_agg = df_agg.set_index('팀명').reindex(chart_teams).fillna(0).reset_index()
-            
-            df_long = df_agg.melt(id_vars='팀명', var_name='유형', value_name='시간')
-            
-            color_map = {
-                '연장시간': '#3B82F6', '연장근로': '#3B82F6', 
-                '야근시간': '#EF4444', 
-                '휴일시간': '#0EA5E9'
-            }
-            
-            fig = px.bar(df_long, x='시간', y='팀명', color='유형',
-                         orientation='h', barmode='stack',
-                         color_discrete_map=color_map, text_auto='.0f')
-            
-            fig.update_traces(textposition='auto', textfont_size=12, textfont_color='white')
-            fig.update_layout(xaxis_title=None, yaxis_title=None, height=400, 
-                              paper_bgcolor='white', plot_bgcolor='white', font=dict(size=14))
-            st.plotly_chart(fig, use_container_width=True)
-            
-        with c2:
-            st.markdown("##### 📅 월별 통합 추이")
-            if '월' in df_ot.columns and not df_ot.empty:
-                trend_df = df_ot.groupby('월')['총근무'].sum().reset_index()
-                try:
-                    trend_df['sort_key'] = trend_df['월'].apply(lambda x: int(re.sub(r'\D', '', str(x))) if re.sub(r'\D', '', str(x)) else 0)
-                    trend_df = trend_df.sort_values('sort_key')
-                except: pass
+                const totalDays = Number(row['합계']) || 0;
+                const usedDays = Number(row['사용일수']) || 0;
+                const remainingDays = Number(row['잔여일수']) || 0;
+                const name = row['성명'];
                 
-                fig2 = px.area(trend_df, x='월', y='총근무', markers=True)
-                fig2.update_traces(line_color='#4318FF', fillcolor='rgba(67, 24, 255, 0.1)')
-                fig2.update_layout(xaxis_title=None, yaxis_title=None, height=400, paper_bgcolor='white', plot_bgcolor='white')
-                st.plotly_chart(fig2, use_container_width=True)
-            else:
-                st.info("데이터 없음")
+                const liabilityBudget = Number(row['부채예산']) || 0;
+                const liabilityBalance = Number(row['부채잔액']) || (remainingDays * AVG_DAILY_WAGE);
 
-    elif view_mode == "📈 주간 추이":
-        st.info("주간 추이 기능은 월별 통합 관리에 집중하기 위해 제외되었습니다.")
+                if (!deptMap[deptName]) {
+                    deptMap[deptName] = { 
+                        name: deptName, 
+                        totalDays: 0, 
+                        usedDays: 0, 
+                        remainingDays: 0, 
+                        employees: 0,
+                        liability: 0
+                    };
+                }
+                deptMap[deptName].totalDays += totalDays;
+                deptMap[deptName].usedDays += usedDays;
+                deptMap[deptName].remainingDays += remainingDays;
+                deptMap[deptName].employees += 1;
+                deptMap[deptName].liability += liabilityBalance;
 
-    st.divider()
-    st.subheader("🗓️ 상세 근무 내역")
-    
-    st.markdown("""
-        <div class="custom-header">
-            <div class="row-item">월</div>
-            <div class="row-item">팀명</div>
-            <div class="row-item">이름</div>
-            <div class="row-item" style="color:#3B82F6;">연장</div>
-            <div class="row-item" style="color:#EF4444;">야근</div>
-            <div class="row-item" style="color:#0EA5E9;">휴일</div>
-            <div class="row-item" style="font-weight:bold;">합계</div>
-        </div>
-    """, unsafe_allow_html=True)
+                if (remainingDays >= 10) {
+                    riskList.push({
+                        name: name,
+                        dept: deptName,
+                        used: usedDays,
+                        remaining: remainingDays,
+                        reason: `잔여 ${remainingDays}일`
+                    });
+                }
 
-    if not df_filtered.empty:
-        df_show_ot = df_filtered.sort_values('총근무', ascending=False).reset_index(drop=True)
+                totalEntitlement += totalDays;
+                for (let i = 1; i <= 12; i++) {
+                    const monthKey = `${i}월`;
+                    const val = Number(row[monthKey]) || 0;
+                    monthSums[i-1] += val;
+                }
+            });
 
-        with st.container(height=500):
-            for _, row in df_show_ot.iterrows():
-                ext = row.get('연장근로', row.get('연장시간', 0))
-                night = row.get('야근시간', 0)
-                hol = row.get('휴일시간', 0)
+            let processedDeptData = Object.values(deptMap).map(d => {
+                const usageRate = d.totalDays > 0 ? ((d.usedDays / d.totalDays) * 100).toFixed(1) : 0;
+                const avgRemaining = d.employees > 0 ? (d.remainingDays / d.employees).toFixed(1) : 0;
                 
-                st.markdown(f"""
-                    <div class="custom-row">
-                        <div class="row-item" style="color:#A3AED0;">{row['월']}</div>
-                        <div class="row-item"><strong>{row['팀명']}</strong></div>
-                        <div class="row-item">{row['이름']}</div>
-                        <div class="row-item" style="color:#3B82F6;">{ext:.1f}</div>
-                        <div class="row-item" style="color:#EF4444;">{night:.1f}</div>
-                        <div class="row-item" style="color:#0EA5E9;">{hol:.1f}</div>
-                        <div class="row-item" style="font-weight:bold; background-color:#EFF4FB; border-radius:4px; color:#2B3674;">{row['총근무']:.1f}h</div>
+                let status = 'Good';
+                if (usageRate < 30) status = 'Critical';
+                else if (usageRate < 50) status = 'Warning';
+                else if (usageRate < 70) status = 'Normal';
+
+                return {
+                    name: d.name,
+                    usageRate: usageRate,
+                    liability: d.liability,
+                    employees: d.employees,
+                    avgRemaining: avgRemaining,
+                    status: status
+                };
+            });
+
+            processedDeptData.sort((a, b) => Number(a.usageRate) - Number(b.usageRate));
+
+            const processedTrendData = monthSums.map((sum, idx) => {
+                const rate = totalEntitlement > 0 ? ((sum / totalEntitlement) * 100).toFixed(1) : 0;
+                const estimated = 1.5 - (idx * 0.05); 
+                return {
+                    month: `${idx + 1}월`,
+                    rate: rate,
+                    liability: Math.max(0, estimated).toFixed(2)
+                };
+            });
+
+            return {
+                deptData: processedDeptData,
+                riskData: riskList.sort((a,b) => b.remaining - a.remaining),
+                trendData: processedTrendData
+            };
+        };
+
+        const calculateKPIs = (deptData, riskData) => {
+            const totalLiability = deptData.reduce((acc, curr) => acc + (Number(curr.liability) || 0), 0);
+            const totalEmployees = deptData.reduce((acc, curr) => acc + (Number(curr.employees) || 0), 0);
+            
+            let weightedRateSum = 0;
+            let weightedRemSum = 0;
+
+            deptData.forEach(d => {
+                weightedRateSum += (Number(d.usageRate) * d.employees);
+                weightedRemSum += (Number(d.avgRemaining) * d.employees);
+            });
+
+            const avgUsageRate = totalEmployees > 0 ? (weightedRateSum / totalEmployees).toFixed(1) : 0;
+            const totalAvgRemaining = totalEmployees > 0 ? (weightedRemSum / totalEmployees).toFixed(1) : 0;
+            const liabilityInEok = (totalLiability / 100000000).toFixed(2); 
+
+            return [
+                { title: "전사 연차 소진율", value: `${avgUsageRate}%`, sub: "목표 60% 대비 Gap", status: avgUsageRate < 50 ? "Warning" : "Good", icon: Umbrella, color: "bg-blue-50 text-blue-600" },
+                { title: "미사용 연차 부채", value: `₩${liabilityInEok}억`, sub: "전체 미사용 수당 합계", status: "Critical", icon: DollarSign, color: "bg-rose-50 text-rose-600" },
+                { title: "사용 촉진 대상자", value: `${riskData.length}명`, sub: "집중 관리 대상 (잔여 과다)", status: "Warning", icon: Users, color: "bg-amber-50 text-amber-600" },
+                { title: "인당 평균 잔여일", value: `${totalAvgRemaining}일`, sub: "회계연도 마감 2개월 전", status: "Normal", icon: Calendar, color: "bg-emerald-50 text-emerald-600" },
+            ];
+        };
+
+        // --- Excel Utilities ---
+        const exportToExcel = (deptData, riskData, trendData, promoData) => {
+            const wb = XLSX.utils.book_new();
+            
+            const rawExample = [
+                {
+                    "소속": "QA팀", "사번": "230021", "성명": "홍길동", "자격등급": "L3", 
+                    "확정년차22": 15, "확정근속31": 0, "쿼터차이": 0, "임시년차": 0, "기초년차": 15, "근속년차": 0,
+                    "합계": 15, "잔여일수": 6, "사용일수": 9, "신청일수": 0, "사용차이": 0,
+                    "1월": 1, "2월": 0.5, "3월": 0.5, "4월": 0, "5월": 0, "6월": 0.5,
+                    "7월": 3, "8월": 1, "9월": 0.5, "10월": 1.5, "11월": 0, "12월": 0.5,
+                    "그룹입사일": "2023-01-02", "회사입사일": "2023-01-02",
+                    "부채예산": 1500000, "부채잔액": 600000 
+                }
+            ];
+            const wsRaw = XLSX.utils.json_to_sheet(rawExample);
+            XLSX.utils.book_append_sheet(wb, wsRaw, "원천데이터");
+
+            const promoKorean = promoData.map(p => ({
+                "날짜": p.date,
+                "이벤트명": p.name,
+                "절감효과": p.savings
+            }));
+            const wsPromo = XLSX.utils.json_to_sheet(promoKorean);
+            XLSX.utils.book_append_sheet(wb, wsPromo, "촉진일정");
+
+            const deptKorean = deptData.map(d => ({
+                "부서명": d.name,
+                "소진율": d.usageRate,
+                "인원": d.employees,
+                "평균잔여일": d.avgRemaining,
+                "상태": d.status,
+                "예상부채": d.liability
+            }));
+            const wsDept = XLSX.utils.json_to_sheet(deptKorean);
+            XLSX.utils.book_append_sheet(wb, wsDept, "부서현황");
+
+            XLSX.writeFile(wb, "연차관리_통합템플릿.xlsx");
+        };
+
+        const readExcel = (file, callback) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const result = {};
+
+                if (workbook.Sheets["원천데이터"]) {
+                    const rawJson = XLSX.utils.sheet_to_json(workbook.Sheets["원천데이터"]);
+                    const processed = processRawData(rawJson);
+                    result.deptData = processed.deptData;
+                    result.riskData = processed.riskData;
+                    result.trendData = processed.trendData;
+                }
+
+                if (workbook.Sheets["촉진일정"]) {
+                    const promoJson = XLSX.utils.sheet_to_json(workbook.Sheets["촉진일정"]);
+                    result.promoData = promoJson.map(p => ({
+                        date: p["날짜"] || p.date,
+                        name: p["이벤트명"] || p.name,
+                        savings: p["절감효과"] || p.savings
+                    }));
+                }
+
+                callback(result);
+            };
+            reader.readAsArrayBuffer(file);
+        };
+
+        // --- Password Modal Component ---
+        const PasswordModal = ({ onVerify, onClose }) => {
+            const [input, setInput] = useState('');
+            const [error, setError] = useState(false);
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (input === '1550') {
+                    onVerify();
+                } else {
+                    setError(true);
+                    setInput('');
+                }
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fadeIn">
+                    <div className="bg-white rounded-2xl p-8 w-80 shadow-2xl">
+                        <div className="flex justify-center mb-4">
+                            <div className="p-3 bg-indigo-100 rounded-full text-indigo-600">
+                                <Lock size={32} />
+                            </div>
+                        </div>
+                        <h3 className="text-xl font-bold text-center text-slate-800 mb-2">관리자 인증</h3>
+                        <p className="text-xs text-center text-slate-500 mb-6">데이터 접근을 위해 비밀번호를 입력하세요.</p>
+                        
+                        <form onSubmit={handleSubmit}>
+                            <input 
+                                type="password" 
+                                className={`w-full px-4 py-2 border rounded-lg text-center font-bold tracking-widest mb-4 focus:outline-none focus:ring-2 ${error ? 'border-rose-500 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-200'}`}
+                                placeholder="●●●●"
+                                value={input}
+                                onChange={(e) => { setInput(e.target.value); setError(false); }}
+                                autoFocus
+                            />
+                            {error && <p className="text-xs text-rose-500 text-center mb-4">비밀번호가 일치하지 않습니다.</p>}
+                            <div className="flex gap-2">
+                                <button 
+                                    type="button" 
+                                    onClick={onClose}
+                                    className="flex-1 py-2 bg-slate-100 text-slate-600 rounded-lg text-sm font-bold hover:bg-slate-200 transition-colors"
+                                >
+                                    취소
+                                </button>
+                                <button 
+                                    type="submit" 
+                                    className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors shadow-md"
+                                >
+                                    확인
+                                </button>
+                            </div>
+                        </form>
                     </div>
-                """, unsafe_allow_html=True)
-    else:
-        st.info("내역이 없습니다.")
+                </div>
+            );
+        };
+
+        // --- Components ---
+        const KPICard = ({ item }) => (
+            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-start justify-between hover:shadow-md transition-shadow">
+                <div>
+                    <p className="text-slate-500 text-sm font-medium mb-1">{item.title}</p>
+                    <h3 className="text-2xl font-bold text-slate-800 mb-1">{item.value}</h3>
+                    <p className={`text-xs font-medium ${
+                        item.status === 'Good' ? 'text-emerald-600' :
+                        item.status === 'Warning' ? 'text-amber-600' : 
+                        item.status === 'Critical' ? 'text-rose-600' : 'text-slate-500'
+                    }`}>
+                        {item.sub}
+                    </p>
+                </div>
+                <div className={`p-3 rounded-xl ${item.color}`}>
+                    <item.icon size={24} />
+                </div>
+            </div>
+        );
+
+        const TotalUsageBar = ({ kpi }) => {
+            const rate = parseFloat(kpi.value) || 0;
+            
+            return (
+                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm mt-6">
+                    <div className="flex justify-between items-end mb-2">
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-800">전사 연차 소진율 현황</h3>
+                            <p className="text-sm text-slate-500">전체 임직원 평균 소진율</p>
+                        </div>
+                        <span className={`text-2xl font-bold ${
+                            rate < 50 ? 'text-rose-600' : 
+                            rate < 70 ? 'text-amber-500' : 'text-emerald-600'
+                        }`}>{rate}%</span>
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-4 overflow-hidden relative">
+                        <div className="absolute top-0 bottom-0 w-0.5 bg-slate-400 z-10" style={{ left: '60%' }} title="목표 60%"></div>
+                        <div 
+                            className={`h-full rounded-full transition-all duration-1000 ${
+                                rate < 50 ? 'bg-rose-500' : 
+                                rate < 70 ? 'bg-amber-500' : 'bg-emerald-500'
+                            }`}
+                            style={{ width: `${Math.min(rate, 100)}%` }}
+                        ></div>
+                    </div>
+                    <div className="flex justify-between text-xs text-slate-400 mt-2">
+                        <span>0%</span>
+                        <span className="font-bold text-slate-600">목표 60%</span>
+                        <span>100%</span>
+                    </div>
+                </div>
+            );
+        };
+
+        const TrendChart = ({ data, maxRate }) => {
+            const maxLiability = Math.max(...data.map(d => parseFloat(d.liability || 0)), 1.5) * 1.2; 
+            
+            const height = 200; 
+            const width = 600;  
+            const padding = 40;
+            const barWidth = 30;
+
+            const getRateY = (rate) => {
+                const clampedRate = Math.min(rate, maxRate);
+                return height - (clampedRate / maxRate) * height;
+            };
+            
+            const step = (width - padding * 2) / (data.length - 1 || 1);
+
+            const points = data.map((d, i) => {
+                const x = padding + i * step;
+                const y = getRateY(parseFloat(d.rate || 0));
+                return `${x},${y}`;
+            }).join(' ');
+
+            return (
+                <div className="w-full h-72 relative">
+                    <div className="absolute left-0 top-0 bottom-8 flex flex-col justify-between text-xs text-blue-500 font-bold">
+                        <span>{maxRate}%</span>
+                        <span>{Math.round(maxRate/2)}%</span>
+                        <span>0%</span>
+                    </div>
+                    <div className="absolute right-0 top-0 bottom-8 flex flex-col justify-between text-xs text-rose-500 font-bold text-right">
+                        <span>{maxLiability.toFixed(1)}억</span>
+                        <span>{(maxLiability/2).toFixed(1)}억</span>
+                        <span>0억</span>
+                    </div>
+
+                    <div className="absolute inset-0 left-8 right-8 bottom-6">
+                        <svg viewBox={`0 0 ${width} ${height + 20}`} className="w-full h-full overflow-visible">
+                            <line x1="0" y1="0" x2={width} y2="0" stroke="#f1f5f9" strokeWidth="1" />
+                            <line x1="0" y1={height/2} x2={width} y2={height/2} stroke="#f1f5f9" strokeWidth="1" />
+                            <line x1="0" y1={height} x2={width} y2={height} stroke="#e2e8f0" strokeWidth="1" />
+
+                            {data.map((d, i) => {
+                                const x = padding + i * step;
+                                const barH = (parseFloat(d.liability || 0) / maxLiability) * height;
+                                return (
+                                    <g key={`bar-${i}`} className="group">
+                                        <rect 
+                                            x={x - barWidth/2} 
+                                            y={height - barH} 
+                                            width={barWidth} 
+                                            height={barH} 
+                                            fill="#f43f5e" 
+                                            className="opacity-20 group-hover:opacity-40 transition-opacity cursor-pointer"
+                                            rx="4"
+                                        />
+                                        <text x={x} y={height - barH - 5} textAnchor="middle" fontSize="10" fill="#f43f5e" className="opacity-0 group-hover:opacity-100 font-bold">
+                                            {d.liability}억
+                                        </text>
+                                    </g>
+                                );
+                            })}
+
+                            <polyline 
+                                fill="none" 
+                                stroke="#3b82f6" 
+                                strokeWidth="3" 
+                                points={points} 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round"
+                            />
+
+                            {data.map((d, i) => {
+                                const x = padding + i * step;
+                                const y = getRateY(parseFloat(d.rate || 0));
+                                return (
+                                    <g key={`point-${i}`} className="group">
+                                        <circle cx={x} cy={y} r="5" fill="white" stroke="#3b82f6" strokeWidth="3" className="cursor-pointer hover:r-7 transition-all"/>
+                                        <text x={x} y={y - 10} textAnchor="middle" fontSize="12" fill="#3b82f6" className="opacity-0 group-hover:opacity-100 font-bold">
+                                            {d.rate}%
+                                        </text>
+                                        <text x={x} y={height + 20} textAnchor="middle" fontSize="12" fill="#64748b" fontWeight="bold">
+                                            {d.month}
+                                        </text>
+                                    </g>
+                                );
+                            })}
+                        </svg>
+                    </div>
+                    
+                    <div className="absolute top-0 right-10 flex gap-4 text-xs bg-white/80 p-2 rounded-lg border border-slate-100">
+                        <span className="flex items-center gap-1"><div className="w-3 h-1 bg-blue-500 rounded-full"></div>연차 소진율(%)</span>
+                        <span className="flex items-center gap-1"><div className="w-3 h-3 bg-rose-500 opacity-30 rounded-sm"></div>부채 잔액(억원)</span>
+                    </div>
+                </div>
+            );
+        };
+
+        const DeptProgress = ({ data, onDeptClick, selectedDept }) => {
+            return (
+                <div className="space-y-3">
+                    {data.map((d, i) => (
+                        <div 
+                            key={i} 
+                            onClick={() => onDeptClick(d.name)}
+                            className={`group p-3 rounded-lg transition-all cursor-pointer border ${
+                                selectedDept === d.name 
+                                    ? 'bg-indigo-50 border-indigo-300 ring-1 ring-indigo-200 shadow-sm' 
+                                    : 'hover:bg-slate-50 border-transparent hover:border-slate-200'
+                            }`}
+                        >
+                            <div className="flex justify-between text-sm mb-2">
+                                <span className={`font-bold ${selectedDept === d.name ? 'text-indigo-800' : 'text-slate-700'}`}>
+                                    {d.name}
+                                </span>
+                                <span className="text-slate-500">
+                                    <span className={`font-bold ${
+                                        d.status === 'Critical' ? 'text-rose-600' : 
+                                        d.status === 'Warning' ? 'text-amber-600' : 'text-emerald-600'
+                                    }`}>{d.usageRate}%</span> 소진
+                                </span>
+                            </div>
+                            <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                <div 
+                                    className={`h-full rounded-full transition-all duration-500 ${
+                                        d.status === 'Critical' ? 'bg-rose-500' : 
+                                        d.status === 'Warning' ? 'bg-amber-500' : 'bg-emerald-500'
+                                    }`}
+                                    style={{ width: `${Math.min(d.usageRate, 100)}%` }}
+                                ></div>
+                            </div>
+                            <div className="flex justify-between mt-2 text-[11px] text-slate-500">
+                                <span>인원: {d.employees}명</span>
+                                <span>부채: ₩{(d.liability/100000000).toFixed(1)}억</span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            );
+        };
+
+        // --- Excel Data View Component ---
+        const ExcelDataManager = ({ deptData, riskData, trendData, promoData, onUpload, onDownload }) => {
+            const fileInputRef = useRef(null);
+
+            const handleFileChange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                onUpload(file);
+                e.target.value = null; 
+            };
+
+            return (
+                <div className="space-y-8 animate-fadeIn">
+                    <div className="bg-gradient-to-r from-emerald-50 to-teal-50 p-6 rounded-2xl border border-emerald-100 flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-white text-emerald-600 rounded-xl shadow-sm border border-emerald-100">
+                                <FileSpreadsheet size={32} />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800">통합 데이터 관리 센터</h3>
+                                <p className="text-sm text-slate-600">제공된 양식에 원본 데이터를 붙여넣어 업로드하세요.</p>
+                            </div>
+                        </div>
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={onDownload}
+                                className="flex items-center gap-2 px-5 py-3 bg-white border border-emerald-200 text-emerald-700 text-sm font-bold rounded-xl hover:bg-emerald-50 transition-colors shadow-sm"
+                            >
+                                <Download size={18} /> 통합 템플릿 다운로드 (.xlsx)
+                            </button>
+                            <button 
+                                onClick={() => fileInputRef.current.click()}
+                                className="flex items-center gap-2 px-5 py-3 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200"
+                            >
+                                <UploadCloud size={18} /> 통합 데이터 업로드
+                            </button>
+                            <input 
+                                type="file" 
+                                ref={fileInputRef} 
+                                className="hidden" 
+                                accept=".xlsx, .xls" 
+                                onChange={handleFileChange}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                            <div className="flex items-center gap-2 mb-4">
+                                <h3 className="text-lg font-bold text-slate-800">분석 결과: 부서별 현황</h3>
+                                <span className="text-xs bg-emerald-100 text-emerald-600 px-2 py-1 rounded">대시보드 자동 연동</span>
+                            </div>
+                            <div className="overflow-x-auto border rounded-lg border-slate-200 max-h-64 custom-scrollbar">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 sticky top-0">
+                                        <tr>
+                                            <th className="px-4 py-3">부서명</th>
+                                            <th className="px-4 py-3 text-center">소진율</th>
+                                            <th className="px-4 py-3 text-center">인원</th>
+                                            <th className="px-4 py-3 text-right">예상부채</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {deptData.map((row, i) => (
+                                            <tr key={i} className="hover:bg-slate-50">
+                                                <td className="px-4 py-3 font-medium text-slate-700">{row.name}</td>
+                                                <td className="px-4 py-3 text-center">{row.usageRate}%</td>
+                                                <td className="px-4 py-3 text-center">{row.employees}</td>
+                                                <td className="px-4 py-3 text-right font-mono text-rose-600">{row.liability?.toLocaleString()}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                            <div className="flex items-center gap-2 mb-4">
+                                <h3 className="text-lg font-bold text-slate-800">촉진 일정 (Editable)</h3>
+                                <span className="text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded">사용자 입력</span>
+                            </div>
+                            <div className="overflow-x-auto border rounded-lg border-slate-200 max-h-64 custom-scrollbar">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 sticky top-0">
+                                        <tr>
+                                            <th className="px-4 py-3">날짜</th>
+                                            <th className="px-4 py-3">이벤트명</th>
+                                            <th className="px-4 py-3">절감효과</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {promoData.map((row, i) => (
+                                            <tr key={i} className="hover:bg-slate-50">
+                                                <td className="px-4 py-3 text-slate-500">{row.date}</td>
+                                                <td className="px-4 py-3 font-medium text-slate-700">{row.name}</td>
+                                                <td className="px-4 py-3 text-emerald-600">{row.savings}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+            const [activeTab, setActiveTab] = useState('Dashboard');
+            
+            const [deptData, setDeptData] = useState(initialDeptData);
+            const [riskData, setRiskData] = useState(initialRiskData);
+            const [trendData, setTrendData] = useState(initialMonthlyTrend);
+            const [promoData, setPromoData] = useState(initialPromotionEvents);
+            
+            const [selectedDept, setSelectedDept] = useState('All');
+            const [filterDept, setFilterDept] = useState('All');
+            const [filterDays, setFilterDays] = useState('15'); 
+            const [trendScale, setTrendScale] = useState(100); 
+            
+            const [isVerified, setIsVerified] = useState(false);
+            const [showPasswordModal, setShowPasswordModal] = useState(false);
+
+            const kpis = useMemo(() => calculateKPIs(deptData, riskData), [deptData, riskData]);
+
+            const handleDeptClick = (deptName) => {
+                if (selectedDept === deptName) {
+                    setSelectedDept('All');
+                    setFilterDept('All'); 
+                } else {
+                    setSelectedDept(deptName);
+                    setFilterDept(deptName); 
+                }
+            };
+
+            const filteredRiskData = riskData.filter(item => {
+                const deptMatch = filterDept === 'All' || item.dept === filterDept;
+                const daysLimit = parseInt(filterDays);
+                const daysMatch = item.remaining >= daysLimit;
+                return deptMatch && daysMatch;
+            });
+
+            const uniqueDepts = ['All', ...new Set(riskData.map(r => r.dept))];
+
+            const handleTabChange = (tabName) => {
+                if (tabName === 'Excel' && !isVerified) {
+                    setShowPasswordModal(true);
+                } else {
+                    setActiveTab(tabName);
+                }
+            };
+
+            const handlePasswordSuccess = () => {
+                setIsVerified(true);
+                setShowPasswordModal(false);
+                setActiveTab('Excel');
+            };
+
+            const handleUpload = (file) => {
+                readExcel(file, (result) => {
+                    if (result.deptData && result.deptData.length > 0) setDeptData(result.deptData);
+                    if (result.riskData && result.riskData.length > 0) setRiskData(result.riskData);
+                    if (result.trendData && result.trendData.length > 0) setTrendData(result.trendData);
+                    if (result.promoData && result.promoData.length > 0) setPromoData(result.promoData);
+                    alert("데이터가 성공적으로 업데이트되었습니다!");
+                });
+            };
+
+            const handleDownload = () => {
+                exportToExcel(deptData, riskData, trendData, promoData);
+            };
+
+            return (
+                <div className="flex h-screen bg-slate-50 text-slate-800 font-sans overflow-hidden">
+                    {showPasswordModal && (
+                        <PasswordModal 
+                            onVerify={handlePasswordSuccess} 
+                            onClose={() => setShowPasswordModal(false)} 
+                        />
+                    )}
+
+                    <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200 transform transition-transform duration-300 lg:relative lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                        <div className="flex items-center gap-3 p-6 h-20 border-b border-slate-100">
+                            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">HR</div>
+                            <span className="font-bold text-lg text-slate-800">연차 관리 센터</span>
+                            <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden ml-auto text-slate-400">
+                                <X size={24} />
+                            </button>
+                        </div>
+                        <nav className="p-4 space-y-1">
+                            <div className="px-4 py-2 text-xs font-semibold text-slate-400 uppercase">Dashboard</div>
+                            <button 
+                                onClick={() => handleTabChange('Dashboard')}
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium border-l-4 transition-colors ${
+                                    activeTab === 'Dashboard' 
+                                        ? 'bg-indigo-50 text-indigo-700 border-indigo-600' 
+                                        : 'text-slate-500 hover:bg-slate-50 border-transparent'
+                                }`}
+                            >
+                                <Sun size={20} /> 연차 촉진 대시보드
+                            </button>
+                            <div className="px-4 py-2 mt-4 text-xs font-semibold text-slate-400 uppercase">Data Management</div>
+                            <button 
+                                onClick={() => handleTabChange('Excel')}
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium border-l-4 transition-colors ${
+                                    activeTab === 'Excel' 
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-600' 
+                                        : 'text-slate-500 hover:bg-slate-50 border-transparent'
+                                }`}
+                            >
+                                <FileSpreadsheet size={20} /> 데이터 관리 (Excel)
+                            </button>
+                        </nav>
+                    </aside>
+
+                    <main className="flex-1 flex flex-col h-full overflow-hidden">
+                        <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8 z-10 shrink-0">
+                            <div className="flex items-center gap-4">
+                                <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 text-slate-600">
+                                    <Menu size={24} />
+                                </button>
+                                <div>
+                                    <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                                        {activeTab === 'Dashboard' ? '연차 사용 현황 및 부채 관리' : '연차 데이터 통합 관리'}
+                                        <span className="text-xs font-medium bg-indigo-50 text-indigo-600 px-2 py-1 rounded border border-indigo-100">FY 2026</span>
+                                    </h1>
+                                    <p className="text-xs text-slate-500 mt-0.5">최종 업데이트: 경영지원팀</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                {activeTab === 'Excel' && (
+                                    <div className="text-xs text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full font-bold flex items-center gap-2">
+                                        <RefreshCw size={12} /> 데이터 연동 준비 완료
+                                    </div>
+                                )}
+                                <div className="flex items-center gap-2">
+                                    <button className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors"><Printer size={20} /></button>
+                                </div>
+                            </div>
+                        </header>
+
+                        <div className="flex-1 overflow-auto p-8 bg-slate-50/50">
+                            <div className="max-w-7xl mx-auto space-y-10">
+                                {activeTab === 'Dashboard' ? (
+                                    <>
+                                        <section>
+                                            <div className="flex items-center gap-3 mb-6">
+                                                <div className="p-2.5 bg-blue-100 text-blue-600 rounded-xl shadow-sm"><DollarSign size={24} /></div>
+                                                <div>
+                                                    <h2 className="text-xl font-bold text-slate-800">1. 재무 영향도 및 전사 현황</h2>
+                                                    <p className="text-sm text-slate-500">연차 소진율과 부채(비용)의 상관관계를 분석합니다.</p>
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                                                {kpis.map((kpi, idx) => (
+                                                    <KPICard key={idx} item={kpi} />
+                                                ))}
+                                            </div>
+                                            
+                                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                                <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                                                    <div className="flex justify-between items-center mb-6">
+                                                        <h3 className="text-lg font-bold text-slate-800">월별 연차 소진율 및 부채 추이</h3>
+                                                        <div className="flex gap-2 items-center">
+                                                            <span className="text-xs text-slate-500">소진율 기준:</span>
+                                                            <select 
+                                                                className="text-xs border border-slate-300 rounded px-2 py-1 bg-white text-slate-600 focus:outline-none focus:border-indigo-500"
+                                                                value={trendScale}
+                                                                onChange={(e) => setTrendScale(Number(e.target.value))}
+                                                            >
+                                                                <option value={100}>100%</option>
+                                                                <option value={50}>50%</option>
+                                                                <option value={30}>30%</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                    <TrendChart data={trendData} maxRate={trendScale} />
+                                                    <div className="mt-6 p-4 bg-indigo-50 rounded-xl border border-indigo-100 flex items-start gap-3">
+                                                        <div className="p-2 bg-white rounded-full text-indigo-600 shadow-sm"><TrendingUp size={16} /></div>
+                                                        <div>
+                                                            <h4 className="font-bold text-indigo-900 text-sm">Financial Insight</h4>
+                                                            <p className="text-xs text-indigo-700 leading-relaxed mt-1">
+                                                                현재 추세라면 회계연도 말 예상 미사용 수당은 <strong>약 {(kpis[1].value)}</strong>입니다. 
+                                                                목표 소진율 달성 시 상당한 비용 절감이 예상됩니다.
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="lg:col-span-1 h-full">
+                                                    <TotalUsageBar kpi={kpis[0]} />
+                                                </div>
+                                            </div>
+                                        </section>
+
+                                        <section>
+                                            <div className="flex items-center gap-3 mb-6">
+                                                <div className="p-2.5 bg-rose-100 text-rose-600 rounded-xl shadow-sm"><AlertTriangle size={24} /></div>
+                                                <div>
+                                                    <h2 className="text-xl font-bold text-slate-800">2. 부서별 휴식 현황과 케어 필요 인원</h2>
+                                                    <p className="text-sm text-slate-500">부서별 연차 사용 흐름을 파악하고, 휴식이 부족한 동료를 미리 챙겨주세요.</p>
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col h-full">
+                                                    <div className="flex justify-between items-center mb-6">
+                                                        <h3 className="text-lg font-bold text-slate-800">부서별 소진율 현황 (Click to Filter)</h3>
+                                                        <button 
+                                                            className="text-xs bg-slate-100 px-2 py-1 rounded text-slate-500"
+                                                            onClick={() => { setSelectedDept('All'); setFilterDept('All'); }}
+                                                        >
+                                                            전체 보기
+                                                        </button>
+                                                    </div>
+                                                    <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                                                        <DeptProgress 
+                                                            data={deptData} 
+                                                            onDeptClick={handleDeptClick} 
+                                                            selectedDept={selectedDept} 
+                                                        />
+                                                    </div>
+                                                    <div className="mt-6 pt-4 border-t border-slate-100">
+                                                        <div className="flex items-center gap-2 p-3 bg-rose-50 rounded-lg border border-rose-100">
+                                                            <AlertTriangle size={16} className="text-rose-500 shrink-0" />
+                                                            <p className="text-xs text-rose-700"><strong>소진율 저조 부서</strong>에 대한 적극적인 독려가 필요합니다.</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm h-full flex flex-col">
+                                                    <div className="flex flex-col gap-4 mb-4">
+                                                        <div className="flex justify-between items-center">
+                                                            <h3 className="text-lg font-bold text-slate-800">휴식 권장 대상 (Care Group)</h3>
+                                                            <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded">
+                                                                {filteredRiskData.length}명
+                                                            </span>
+                                                        </div>
+                                                        
+                                                        <div className="flex gap-2">
+                                                            <select 
+                                                                className="text-xs border border-slate-300 rounded px-2 py-1 bg-white text-slate-600 focus:outline-none focus:border-indigo-500"
+                                                                value={filterDept}
+                                                                onChange={(e) => {
+                                                                    setFilterDept(e.target.value);
+                                                                    setSelectedDept(e.target.value); 
+                                                                }}
+                                                            >
+                                                                <option value="All">전체 부서</option>
+                                                                {uniqueDepts.filter(d => d !== 'All').map(d => (
+                                                                    <option key={d} value={d}>{d}</option>
+                                                                ))}
+                                                            </select>
+                                                            <select 
+                                                                className="text-xs border border-slate-300 rounded px-2 py-1 bg-white text-slate-600 focus:outline-none focus:border-indigo-500"
+                                                                value={filterDays}
+                                                                onChange={(e) => setFilterDays(e.target.value)}
+                                                            >
+                                                                <option value="10">잔여 10일 이상</option>
+                                                                <option value="15">잔여 15일 이상</option>
+                                                                <option value="20">잔여 20일 이상</option>
+                                                                <option value="25">잔여 25일 이상</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="overflow-x-auto flex-1 custom-scrollbar max-h-[300px]">
+                                                        <table className="w-full text-left text-sm">
+                                                            <thead className="bg-slate-50 text-slate-500 sticky top-0">
+                                                                <tr>
+                                                                    <th className="px-4 py-2 rounded-l-lg">성명/직급</th>
+                                                                    <th className="px-4 py-2">소속</th>
+                                                                    <th className="px-4 py-2 text-center">잔여일수</th>
+                                                                    <th className="px-4 py-2 rounded-r-lg">비고</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-slate-50">
+                                                                {filteredRiskData.length > 0 ? (
+                                                                    filteredRiskData.map((emp, i) => (
+                                                                        <tr key={i} className="hover:bg-slate-50">
+                                                                            <td className="px-4 py-3 font-bold text-slate-700">{emp.name}</td>
+                                                                            <td className="px-4 py-3 text-slate-500">{emp.dept}</td>
+                                                                            <td className="px-4 py-3 text-center">
+                                                                                <span className="px-2 py-1 bg-rose-100 text-rose-600 rounded font-bold text-xs">
+                                                                                    {emp.remaining}일
+                                                                                </span>
+                                                                            </td>
+                                                                            <td className="px-4 py-3 text-slate-500 text-xs">{emp.reason}</td>
+                                                                        </tr>
+                                                                    ))
+                                                                ) : (
+                                                                    <tr>
+                                                                        <td colSpan="4" className="text-center py-8 text-slate-400 text-sm">
+                                                                            해당 조건의 대상자가 없습니다.
+                                                                        </td>
+                                                                    </tr>
+                                                                )}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                    
+                                                    {filteredRiskData.length > 0 && (
+                                                        <button className="w-full mt-4 py-3 text-sm text-indigo-600 font-medium bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors flex items-center justify-center gap-2">
+                                                            <Users size={16} /> 대상자({filteredRiskData.length}명) 독려 메일 발송
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </section>
+
+                                        <section>
+                                            <div className="flex items-center gap-3 mb-6">
+                                                <div className="p-2.5 bg-emerald-100 text-emerald-600 rounded-xl shadow-sm"><Target size={24} /></div>
+                                                <div>
+                                                    <h2 className="text-xl font-bold text-slate-800">3. 촉진 전략 및 실행 가이드</h2>
+                                                    <p className="text-sm text-slate-500">비용 절감과 리프레시를 위한 구체적인 실행 계획입니다.</p>
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                                                    <div className="flex justify-between items-center mb-4">
+                                                        <h3 className="text-lg font-bold text-slate-800">연차 촉진 권장일 (Golden Days)</h3>
+                                                        <span className="text-xs px-2 py-1 bg-emerald-50 text-emerald-600 rounded font-bold border border-emerald-100">Cost Saving Plan</span>
+                                                    </div>
+                                                    <div className="space-y-3">
+                                                        {promoData.map((evt, i) => (
+                                                            <div key={i} className="flex items-center p-3 border border-slate-100 rounded-xl hover:border-indigo-200 transition-colors bg-slate-50/50">
+                                                                <div className="w-12 h-12 bg-white rounded-lg flex flex-col items-center justify-center border border-slate-100 shadow-sm shrink-0">
+                                                                    <span className="text-[10px] text-slate-400 font-bold uppercase">{evt.date.split('(')[0].split('/')[0]}월</span>
+                                                                    <span className="text-sm font-bold text-slate-800">{evt.date.split('(')[0].split('/')[1]}</span>
+                                                                </div>
+                                                                <div className="ml-4 flex-1">
+                                                                    <div className="flex justify-between">
+                                                                        <h4 className="font-bold text-slate-700">{evt.name}</h4>
+                                                                        <span className="text-xs font-bold text-emerald-600">절감예상 {evt.savings}</span>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2 mt-1">
+                                                                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                                                                            evt.impact === 'High' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-600'
+                                                                        }`}>효과: {evt.impact}</span>
+                                                                        <span className="text-xs text-slate-400">{evt.date}</span>
+                                                                    </div>
+                                                                </div>
+                                                                <button className="ml-2 p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"><CheckCircle size={18} /></button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-6 rounded-2xl text-white flex flex-col justify-between relative overflow-hidden">
+                                                    <div className="absolute top-0 right-0 -mr-10 -mt-10 w-40 h-40 bg-white opacity-10 rounded-full blur-2xl"></div>
+                                                    <div>
+                                                        <h3 className="text-lg font-bold mb-1">부서장 Action Guide</h3>
+                                                        <p className="text-indigo-100 text-sm mb-6">연차 사용은 직원의 '권리'이자 회사의 '비용 절감' 전략입니다. 아래 내용을 팀 미팅 시 공유해주세요.</p>
+                                                        <ul className="space-y-3">
+                                                            <li className="flex items-center gap-3 bg-white/10 p-3 rounded-lg backdrop-blur-sm"><CheckCircle size={18} className="text-emerald-300 shrink-0" /><span className="text-sm font-medium">샌드위치 데이(2/14) 팀 전원 휴무 권장</span></li>
+                                                            <li className="flex items-center gap-3 bg-white/10 p-3 rounded-lg backdrop-blur-sm"><CheckCircle size={18} className="text-emerald-300 shrink-0" /><span className="text-sm font-medium">잔여 연차 10일 이상자 휴가 계획서 징구</span></li>
+                                                            <li className="flex items-center gap-3 bg-white/10 p-3 rounded-lg backdrop-blur-sm"><CheckCircle size={18} className="text-emerald-300 shrink-0" /><span className="text-sm font-medium">업무 대행자 지정 및 인수인계 파일 점검</span></li>
+                                                        </ul>
+                                                    </div>
+                                                    <button className="w-full mt-6 py-3 bg-white text-indigo-600 font-bold rounded-xl shadow-lg hover:bg-indigo-50 transition-colors">가이드라인 공지 발송</button>
+                                                </div>
+                                            </div>
+                                        </section>
+                                    </>
+                                ) : (
+                                    <ExcelDataManager 
+                                        deptData={deptData} 
+                                        riskData={riskData} 
+                                        trendData={trendData}
+                                        promoData={promoData}
+                                        onUpload={handleUpload}
+                                        onDownload={handleDownload}
+                                    />
+                                )}
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
