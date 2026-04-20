@@ -378,8 +378,15 @@ if menu == "💰 예산 관리":
         final_spent = 0
         final_balance = 0
         
+        cum_budget_pure = 0
+        cum_spent = 0
+        
+        target_month_idx = 12
+        if period_option != "전체 누적":
+            try: target_month_idx = int(period_option.split('-')[1])
+            except: target_month_idx = 1
+        
         if period_option == "전체 누적":
-            # [1월 분리 로직] 실적관리는 2월~12월만 합산
             total_budget = team_base_monthly * 11
             total_add = 0
             for m in range(2, 13):
@@ -388,25 +395,24 @@ if menu == "💰 예산 관리":
                     total_add += df_budget.loc[df_budget['팀명'] == team, col_name].sum()
             
             final_budget = total_budget + total_add
-            
             months_to_include = [f"{target_year}-{str(x).zfill(2)}" for x in range(2, 13)]
             final_spent = monthly_exp[(monthly_exp['팀명'] == team) & (monthly_exp['월'].isin(months_to_include))]['금액'].sum()
             final_balance = final_budget - final_spent
             
+            cum_budget_pure = final_budget
+            cum_spent = final_spent
         else:
-            try: target_month_idx = int(period_option.split('-')[1])
-            except: target_month_idx = 1
-            
             if target_month_idx == 1:
-                # 1월은 1월 데이터만 계산 (이월 없음)
                 col_name = "1월_추가"
                 this_add = df_budget.loc[df_budget['팀명'] == team, col_name].sum() if col_name in df_budget.columns else 0
                 
                 final_budget = team_base_monthly + this_add
                 final_spent = monthly_exp[(monthly_exp['팀명'] == team) & (monthly_exp['월'] == period_option)]['금액'].sum()
                 final_balance = final_budget - final_spent
+                
+                cum_budget_pure = final_budget
+                cum_spent = final_spent
             else:
-                # 2월부터는 누적 계산 (단, 1월은 제외하고 2월을 베이스캠프로 시작)
                 cumulative_balance = 0
                 for m in range(2, target_month_idx + 1):
                     month_str = f"{target_year}-{str(m).zfill(2)}"
@@ -420,6 +426,10 @@ if menu == "💰 예산 관리":
                     current_balance = available - spent
                     cumulative_balance = current_balance
 
+                    # 누계 값 계산 (2월 ~ 대상월)
+                    cum_budget_pure += (team_base_monthly + this_add)
+                    cum_spent += spent
+
                     if m == target_month_idx:
                         final_budget = available 
                         final_spent = spent
@@ -430,14 +440,16 @@ if menu == "💰 예산 관리":
             '예산': final_budget,
             '사용액': final_spent,
             '잔액': final_balance,
-            '집행률': (final_spent / final_budget * 100) if final_budget > 0 else 0
+            '집행률': (final_spent / final_budget * 100) if final_budget > 0 else 0,
+            '누계_예산': cum_budget_pure,
+            '누계_사용액': cum_spent,
+            '누계_집행률': (cum_spent / cum_budget_pure * 100) if cum_budget_pure > 0 else 0
         })
 
     df_dash = pd.DataFrame(dashboard_rows)
     
     df_detail_filtered = df_expense.copy()
     if period_option == "전체 누적":
-        # 전체 누적 시 1월 상세 내역 제외
         df_detail_filtered = df_detail_filtered[df_detail_filtered['월_숫자'] >= 2]
     else:
         df_detail_filtered = df_detail_filtered[df_detail_filtered['월'] == period_option]
@@ -485,53 +497,89 @@ if menu == "💰 예산 관리":
         
         col_left, col_right = st.columns(2)
         
-        with col_left:
-            for row in left_data:
-                pct = min(row['집행률'], 100)
-                status_color = "#3B82F6" if pct < 80 else ("#F59E0B" if pct < 100 else "#EF4444")
-                
-                st.markdown(f"""
-                    <div style="background:white; padding:24px; border-radius:16px; margin-bottom:15px; box-shadow: 0px 4px 12px rgba(0,0,0,0.05); border:1px solid #E2E8F0;">
-                        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                            <span style="font-weight:700; color:#1E293B; font-size:1.1rem;">{row['팀명']}</span>
-                            <span style="font-weight:800; color:{status_color}; font-size:1.1rem;">{row['집행률']:.1f}%</span>
+        # [수정] 카드 UI: 당월 실적과 누계 실적 위아래 배치
+        def generate_card_html(row, is_cumulative_view):
+            cur_pct = min(row['집행률'], 100)
+            cur_color = "#3B82F6" if cur_pct < 80 else ("#F59E0B" if cur_pct < 100 else "#EF4444")
+            
+            cum_pct = min(row['누계_집행률'], 100)
+            cum_color = "#3B82F6" if cum_pct < 80 else ("#F59E0B" if cum_pct < 100 else "#EF4444")
+
+            if is_cumulative_view:
+                title_label = "■ 누계 실적" if period_option == "전체 누적" else "■ 누계 실적 (1월)"
+                return f"""
+                    <div style="background:white; padding:20px; border-radius:16px; margin-bottom:15px; box-shadow: 0px 4px 12px rgba(0,0,0,0.05); border:1px solid #E2E8F0; border-top: 4px solid #3B82F6;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
+                            <span style="font-weight:800; color:#1E293B; font-size:1.15rem;">{row['팀명']}</span>
                         </div>
-                        <div style="width:100%; background-color:#F1F5F9; height:10px; border-radius:5px; margin-bottom:15px;">
-                            <div style="width:{pct}%; background-color:{status_color}; height:10px; border-radius:5px;"></div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                            <span style="font-weight:700; color:#4318FF; font-size:0.9rem;">{title_label}</span>
+                            <span style="font-weight:800; color:{cum_color}; font-size:0.95rem;">{row['누계_집행률']:.1f}%</span>
                         </div>
-                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; font-size:0.9rem; color:#64748B;">
-                            <div>예산: {row['예산']:,.0f}</div>
-                            <div style="text-align:right;">사용: <strong style="color:#1E293B;">{row['사용액']:,.0f}</strong></div>
-                            <div style="grid-column: span 2; text-align:right; border-top:1px solid #F1F5F9; padding-top:8px;">
-                                잔액: <strong style="color:{status_color}; font-size:1rem;">{row['잔액']:,.0f}</strong>
+                        <div style="width:100%; background-color:#F1F5F9; height:8px; border-radius:4px; margin-bottom:15px;">
+                            <div style="width:{cum_pct}%; background-color:{cum_color}; height:8px; border-radius:4px;"></div>
+                        </div>
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; font-size:0.9rem; color:#64748B;">
+                            <div>예산: {row['누계_예산']:,.0f}</div>
+                            <div style="text-align:right;">사용: <strong style="color:#1E293B;">{row['누계_사용액']:,.0f}</strong></div>
+                            <div style="grid-column: span 2; text-align:right; border-top:1px solid #F1F5F9; padding-top:10px; margin-top:5px;">
+                                잔액: <strong style="color:{cum_color}; font-size:1.05rem;">{row['잔액']:,.0f}</strong>
                             </div>
                         </div>
                     </div>
-                """, unsafe_allow_html=True)
+                """
+            else:
+                return f"""
+                    <div style="background:white; padding:20px; border-radius:16px; margin-bottom:15px; box-shadow: 0px 4px 12px rgba(0,0,0,0.05); border:1px solid #E2E8F0; border-top: 4px solid #3B82F6;">
+                        <div style="margin-bottom:15px;">
+                            <span style="font-weight:800; color:#1E293B; font-size:1.15rem;">{row['팀명']}</span>
+                        </div>
+                        <!-- 당월 -->
+                        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                            <span style="font-weight:700; color:#64748B; font-size:0.85rem;">■ 당월 실적</span>
+                            <span style="font-weight:800; color:{cur_color}; font-size:0.9rem;">당월 {row['집행률']:.1f}%</span>
+                        </div>
+                        <div style="width:100%; background-color:#F1F5F9; height:6px; border-radius:3px; margin-bottom:10px;">
+                            <div style="width:{cur_pct}%; background-color:{cur_color}; height:6px; border-radius:3px;"></div>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; font-size:0.85rem; color:#64748B; margin-bottom:15px;">
+                            <span>가용: {row['예산']:,.0f}</span>
+                            <span>사용: <strong style="color:#1E293B;">{row['사용액']:,.0f}</strong></span>
+                        </div>
+                        
+                        <!-- 구분선 -->
+                        <div style="border-top: 1px dashed #E2E8F0; margin: 15px 0;"></div>
+                        
+                        <!-- 누계 -->
+                        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                            <span style="font-weight:700; color:#4318FF; font-size:0.85rem;">■ 누계 실적 (2월~)</span>
+                            <span style="font-weight:800; color:{cum_color}; font-size:0.9rem;">누계 {row['누계_집행률']:.1f}%</span>
+                        </div>
+                        <div style="width:100%; background-color:#F1F5F9; height:6px; border-radius:3px; margin-bottom:10px;">
+                            <div style="width:{cum_pct}%; background-color:{cum_color}; height:6px; border-radius:3px;"></div>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; font-size:0.85rem; color:#64748B;">
+                            <span>누계 예산: {row['누계_예산']:,.0f}</span>
+                            <span>누계 사용: <strong style="color:#1E293B;">{row['누계_사용액']:,.0f}</strong></span>
+                        </div>
+                        
+                        <!-- 잔액 -->
+                        <div style="text-align:right; border-top:1px solid #F1F5F9; padding-top:10px; margin-top:12px;">
+                            <span style="font-size:0.9rem; color:#64748B;">최종 잔액: </span>
+                            <strong style="color:{cum_color}; font-size:1.1rem;">{row['잔액']:,.0f}</strong>
+                        </div>
+                    </div>
+                """
+
+        is_cumulative_view = period_option == "전체 누적" or "-01" in period_option
+
+        with col_left:
+            for row in left_data:
+                st.markdown(generate_card_html(row, is_cumulative_view), unsafe_allow_html=True)
 
         with col_right:
             for row in right_data:
-                pct = min(row['집행률'], 100)
-                status_color = "#3B82F6" if pct < 80 else ("#F59E0B" if pct < 100 else "#EF4444")
-                
-                st.markdown(f"""
-                    <div style="background:white; padding:24px; border-radius:16px; margin-bottom:15px; box-shadow: 0px 4px 12px rgba(0,0,0,0.05); border:1px solid #E2E8F0;">
-                        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                            <span style="font-weight:700; color:#1E293B; font-size:1.1rem;">{row['팀명']}</span>
-                            <span style="font-weight:800; color:{status_color}; font-size:1.1rem;">{row['집행률']:.1f}%</span>
-                        </div>
-                        <div style="width:100%; background-color:#F1F5F9; height:10px; border-radius:5px; margin-bottom:15px;">
-                            <div style="width:{pct}%; background-color:{status_color}; height:10px; border-radius:5px;"></div>
-                        </div>
-                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; font-size:0.9rem; color:#64748B;">
-                            <div>예산: {row['예산']:,.0f}</div>
-                            <div style="text-align:right;">사용: <strong style="color:#1E293B;">{row['사용액']:,.0f}</strong></div>
-                            <div style="grid-column: span 2; text-align:right; border-top:1px solid #F1F5F9; padding-top:8px;">
-                                잔액: <strong style="color:{status_color}; font-size:1rem;">{row['잔액']:,.0f}</strong>
-                            </div>
-                        </div>
-                    </div>
-                """, unsafe_allow_html=True)
+                st.markdown(generate_card_html(row, is_cumulative_view), unsafe_allow_html=True)
     else:
         st.info("데이터 없음")
 
