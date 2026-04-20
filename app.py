@@ -113,17 +113,22 @@ st.markdown("""
         .custom-row:hover { background-color: #F4F7FE; transform: translateX(5px); }
         
         .custom-header {
-            background-color: #F4F7FE;
+            background-color: #EEF2FF; 
             border-radius: 12px;
-            padding: 12px 10px;
-            font-weight: 600;
-            color: #A3AED0;
-            font-size: 0.85rem;
+            padding: 16px 10px;
+            font-weight: 700;
+            color: #4318FF; 
+            font-size: 0.9rem;
             display: flex;
             align-items: center;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+            border: 1px solid #E0E7FF;
+        }
+        .custom-header .row-item, .custom-header .row-item-left {
+            color: #4318FF !important;
+            font-weight: 800 !important;
         }
         
         .row-item { flex: 1; text-align: center; font-size: 0.95rem; color: #2B3674; font-weight: 500; }
@@ -364,94 +369,96 @@ if menu == "💰 예산 관리":
     dashboard_rows = []
     
     target_teams = df_budget['팀명'].unique() if team_option == "전체 팀" else [team_option]
-    
-    # 당월/누계 연산 로직
+    target_year = master_months[1].split('-')[0] if len(master_months) > 1 else '2026'
+
     for team in target_teams:
         team_base_monthly = df_budget.loc[df_budget['팀명'] == team, '월기본예산'].sum()
         
-        is_cumulative_view = (period_option == "전체 누적")
-        target_month_idx = 12
-        if not is_cumulative_view:
+        final_budget = 0
+        final_spent = 0
+        final_balance = 0
+        
+        if period_option == "전체 누적":
+            # [1월 분리 로직] 실적관리는 2월~12월만 합산
+            total_budget = team_base_monthly * 11
+            total_add = 0
+            for m in range(2, 13):
+                col_name = f"{m}월_추가"
+                if col_name in df_budget.columns:
+                    total_add += df_budget.loc[df_budget['팀명'] == team, col_name].sum()
+            
+            final_budget = total_budget + total_add
+            
+            months_to_include = [f"{target_year}-{str(x).zfill(2)}" for x in range(2, 13)]
+            final_spent = monthly_exp[(monthly_exp['팀명'] == team) & (monthly_exp['월'].isin(months_to_include))]['금액'].sum()
+            final_balance = final_budget - final_spent
+            
+        else:
             try: target_month_idx = int(period_option.split('-')[1])
             except: target_month_idx = 1
-        
-        cum_budget = 0
-        cum_spent = 0
-        cur_budget_added = 0
-        cur_spent = 0
-        
-        for m in range(1, target_month_idx + 1):
-            month_str = f"2026-{str(m).zfill(2)}"
             
-            add_col = [c for c in df_budget.columns if str(m) in c and '추가' in c]
-            this_add = df_budget.loc[df_budget['팀명'] == team, add_col[0]].sum() if add_col else 0
-            
-            spent = monthly_exp[(monthly_exp['팀명'] == team) & (monthly_exp['월'] == month_str)]['금액'].sum()
-            
-            cum_budget += (team_base_monthly + this_add)
-            cum_spent += spent
-            
-            if m == target_month_idx:
-                cur_budget_added = team_base_monthly + this_add
-                cur_spent = spent
-
-        cum_balance = cum_budget - cum_spent
-        cum_rate = (cum_spent / cum_budget * 100) if cum_budget > 0 else 0
-        
-        if is_cumulative_view:
-            cur_budget_total = cum_budget
-            cur_balance = cum_balance
-            cur_rate = cum_rate
-        else:
-            # 이월액 계산 (전월까지의 누계 예산 - 누계 지출)
             if target_month_idx == 1:
-                carry_over = 0
+                # 1월은 1월 데이터만 계산 (이월 없음)
+                col_name = "1월_추가"
+                this_add = df_budget.loc[df_budget['팀명'] == team, col_name].sum() if col_name in df_budget.columns else 0
+                
+                final_budget = team_base_monthly + this_add
+                final_spent = monthly_exp[(monthly_exp['팀명'] == team) & (monthly_exp['월'] == period_option)]['금액'].sum()
+                final_balance = final_budget - final_spent
             else:
-                prev_cum_budget = cum_budget - cur_budget_added
-                prev_cum_spent = cum_spent - cur_spent
-                carry_over = prev_cum_budget - prev_cum_spent
-            
-            cur_budget_total = cur_budget_added + carry_over
-            cur_balance = cur_budget_total - cur_spent
-            cur_rate = (cur_spent / cur_budget_total * 100) if cur_budget_total > 0 else 0
+                # 2월부터는 누적 계산 (단, 1월은 제외하고 2월을 베이스캠프로 시작)
+                cumulative_balance = 0
+                for m in range(2, target_month_idx + 1):
+                    month_str = f"{target_year}-{str(m).zfill(2)}"
+                    
+                    col_name = f"{m}월_추가"
+                    this_add = df_budget.loc[df_budget['팀명'] == team, col_name].sum() if col_name in df_budget.columns else 0
+                    
+                    available = cumulative_balance + team_base_monthly + this_add
+                    spent = monthly_exp[(monthly_exp['팀명'] == team) & (monthly_exp['월'] == month_str)]['금액'].sum()
+                    
+                    current_balance = available - spent
+                    cumulative_balance = current_balance
+
+                    if m == target_month_idx:
+                        final_budget = available 
+                        final_spent = spent
+                        final_balance = current_balance
 
         dashboard_rows.append({
             '팀명': team,
-            '누계_예산': cum_budget,
-            '누계_사용액': cum_spent,
-            '누계_잔액': cum_balance,
-            '누계_집행률': cum_rate,
-            '당월_예산': cur_budget_total,
-            '당월_사용액': cur_spent,
-            '당월_잔액': cur_balance,
-            '당월_집행률': cur_rate,
-            'is_공통': 1 if "공통" in str(team) else 0  # 공통운영비 상단 정렬용
+            '예산': final_budget,
+            '사용액': final_spent,
+            '잔액': final_balance,
+            '집행률': (final_spent / final_budget * 100) if final_budget > 0 else 0
         })
 
     df_dash = pd.DataFrame(dashboard_rows)
-    # 정렬: 공통운영비가 가장 먼저 오고, 그 다음 팀명 순
-    if not df_dash.empty:
-        df_dash = df_dash.sort_values(by=['is_공통', '팀명'], ascending=[False, True]).reset_index(drop=True)
     
     df_detail_filtered = df_expense.copy()
-    if period_option != "전체 누적":
+    if period_option == "전체 누적":
+        # 전체 누적 시 1월 상세 내역 제외
+        df_detail_filtered = df_detail_filtered[df_detail_filtered['월_숫자'] >= 2]
+    else:
         df_detail_filtered = df_detail_filtered[df_detail_filtered['월'] == period_option]
+        
     if team_option != "전체 팀":
         df_detail_filtered = df_detail_filtered[df_detail_filtered['팀명'] == team_option]
     if cat_main != "전체": df_detail_filtered = df_detail_filtered[df_detail_filtered['대분류'] == cat_main]
     if cat_sub != "전체": df_detail_filtered = df_detail_filtered[df_detail_filtered['소분류'] == cat_sub]
 
+    notice_msg = " (※ 실적 관리: 2월~12월 기준)" if period_option == "전체 누적" else ""
     st.markdown(f"""
         <div class="modern-header">
             <h1>💰 예산 관리 대시보드</h1>
-            <p>Status: {team_option} / {period_option}</p>
+            <p>Status: {team_option} / {period_option}{notice_msg}</p>
         </div>
     """, unsafe_allow_html=True)
     
     if cat_main == "전체":
-        tot_b = df_dash['당월_예산'].sum()
-        tot_s = df_dash['당월_사용액'].sum()
-        tot_r = df_dash['당월_잔액'].sum()
+        tot_b = df_dash['예산'].sum()
+        tot_s = df_dash['사용액'].sum()
+        tot_r = df_dash['잔액'].sum()
     else:
         tot_b = 0
         tot_s = df_detail_filtered['금액'].sum()
@@ -462,13 +469,13 @@ if menu == "💰 예산 관리":
     c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("가용 예산 (이월포함)", f"{tot_b:,.0f}원")
     c2.metric("총 사용액", f"{tot_s:,.0f}원")
-    c3.metric("총 집행률", f"{total_rate:.1f}%")
-    c4.metric("현재 잔액", f"{tot_r:,.0f}원")
+    c3.metric("총 집행률", f"{total_rate:.1f}%", delta="Status")
+    c4.metric("현재 잔액", f"{tot_r:,.0f}원", delta="Remain")
     c5.metric("지출 건수", f"{len(df_detail_filtered):,}건")
 
     st.divider()
 
-    st.subheader("🏢 팀별 집행 현황 (당월 & 누계)")
+    st.subheader("🏢 팀별 집행 현황")
     
     if not df_dash.empty:
         records = df_dash.to_dict('records')
@@ -478,60 +485,53 @@ if menu == "💰 예산 관리":
         
         col_left, col_right = st.columns(2)
         
-        def render_card(row):
-            is_common = row['is_공통'] == 1 # 변수명 오류(is_com -> is_common) 수정
-            header_color = "#8B5CF6" if is_common else "#3B82F6"
-            team_label = f"⭐ {row['팀명']}" if is_common else row['팀명']
-            
-            cur_pct = min(row['당월_집행률'], 100)
-            cum_pct = min(row['누계_집행률'], 100)
-            
-            cur_status_color = "#3B82F6" if cur_pct < 80 else ("#F59E0B" if cur_pct < 100 else "#EF4444")
-            cum_status_color = "#3B82F6" if cum_pct < 80 else ("#F59E0B" if cum_pct < 100 else "#EF4444")
-
-            # 파이썬 에러 방지를 위해 들여쓰기 없이 리턴
-            return f"""<div style="background:white; padding:24px; border-radius:16px; margin-bottom:20px; box-shadow: 0px 4px 12px rgba(0,0,0,0.05); border:1px solid #E2E8F0; border-top: 5px solid {header_color};">
-<div style="margin-bottom:15px;">
-<span style="font-weight:800; color:#1E293B; font-size:1.2rem;">{team_label}</span>
-</div>
-<div style="margin-bottom: 20px;">
-<div style="display:flex; justify-content:space-between; font-size: 0.9rem; margin-bottom: 6px;">
-<span style="color:#64748B; font-weight:700;">당월 실적 (이월포함)</span>
-<span style="font-weight:800; color:{cur_status_color};">{row['당월_집행률']:.1f}%</span>
-</div>
-<div style="width:100%; background-color:#F1F5F9; height:8px; border-radius:4px; margin-bottom:10px;">
-<div style="width:{cur_pct}%; background-color:{cur_status_color}; height:8px; border-radius:4px;"></div>
-</div>
-<div style="display:flex; justify-content:space-between; font-size:0.85rem; color:#64748B;">
-<span>예산: {row['당월_예산']:,.0f}</span>
-<span>사용: <strong style="color:#1E293B;">{row['당월_사용액']:,.0f}</strong></span>
-<span>잔액: <strong style="color:{cur_status_color};">{row['당월_잔액']:,.0f}</strong></span>
-</div>
-</div>
-<div style="border-top: 1px dashed #E2E8F0; margin: 15px 0;"></div>
-<div>
-<div style="display:flex; justify-content:space-between; font-size: 0.9rem; margin-bottom: 6px;">
-<span style="color:#64748B; font-weight:700;">누계 실적 (1월 ~ 현재)</span>
-<span style="font-weight:800; color:{cum_status_color};">{row['누계_집행률']:.1f}%</span>
-</div>
-<div style="width:100%; background-color:#F1F5F9; height:8px; border-radius:4px; margin-bottom:10px;">
-<div style="width:{cum_pct}%; background-color:{cum_status_color}; height:8px; border-radius:4px;"></div>
-</div>
-<div style="display:flex; justify-content:space-between; font-size:0.85rem; color:#64748B;">
-<span>예산: {row['누계_예산']:,.0f}</span>
-<span>사용: <strong style="color:#1E293B;">{row['누계_사용액']:,.0f}</strong></span>
-<span>잔액: <strong style="color:{cum_status_color};">{row['누계_잔액']:,.0f}</strong></span>
-</div>
-</div>
-</div>"""
-
         with col_left:
             for row in left_data:
-                st.markdown(render_card(row), unsafe_allow_html=True)
+                pct = min(row['집행률'], 100)
+                status_color = "#3B82F6" if pct < 80 else ("#F59E0B" if pct < 100 else "#EF4444")
                 
+                st.markdown(f"""
+                    <div style="background:white; padding:24px; border-radius:16px; margin-bottom:15px; box-shadow: 0px 4px 12px rgba(0,0,0,0.05); border:1px solid #E2E8F0;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                            <span style="font-weight:700; color:#1E293B; font-size:1.1rem;">{row['팀명']}</span>
+                            <span style="font-weight:800; color:{status_color}; font-size:1.1rem;">{row['집행률']:.1f}%</span>
+                        </div>
+                        <div style="width:100%; background-color:#F1F5F9; height:10px; border-radius:5px; margin-bottom:15px;">
+                            <div style="width:{pct}%; background-color:{status_color}; height:10px; border-radius:5px;"></div>
+                        </div>
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; font-size:0.9rem; color:#64748B;">
+                            <div>예산: {row['예산']:,.0f}</div>
+                            <div style="text-align:right;">사용: <strong style="color:#1E293B;">{row['사용액']:,.0f}</strong></div>
+                            <div style="grid-column: span 2; text-align:right; border-top:1px solid #F1F5F9; padding-top:8px;">
+                                잔액: <strong style="color:{status_color}; font-size:1rem;">{row['잔액']:,.0f}</strong>
+                            </div>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+
         with col_right:
             for row in right_data:
-                st.markdown(render_card(row), unsafe_allow_html=True)
+                pct = min(row['집행률'], 100)
+                status_color = "#3B82F6" if pct < 80 else ("#F59E0B" if pct < 100 else "#EF4444")
+                
+                st.markdown(f"""
+                    <div style="background:white; padding:24px; border-radius:16px; margin-bottom:15px; box-shadow: 0px 4px 12px rgba(0,0,0,0.05); border:1px solid #E2E8F0;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                            <span style="font-weight:700; color:#1E293B; font-size:1.1rem;">{row['팀명']}</span>
+                            <span style="font-weight:800; color:{status_color}; font-size:1.1rem;">{row['집행률']:.1f}%</span>
+                        </div>
+                        <div style="width:100%; background-color:#F1F5F9; height:10px; border-radius:5px; margin-bottom:15px;">
+                            <div style="width:{pct}%; background-color:{status_color}; height:10px; border-radius:5px;"></div>
+                        </div>
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; font-size:0.9rem; color:#64748B;">
+                            <div>예산: {row['예산']:,.0f}</div>
+                            <div style="text-align:right;">사용: <strong style="color:#1E293B;">{row['사용액']:,.0f}</strong></div>
+                            <div style="grid-column: span 2; text-align:right; border-top:1px solid #F1F5F9; padding-top:8px;">
+                                잔액: <strong style="color:{status_color}; font-size:1rem;">{row['잔액']:,.0f}</strong>
+                            </div>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
     else:
         st.info("데이터 없음")
 
@@ -552,28 +552,35 @@ if menu == "💰 예산 관리":
     else:
         if not df_detail_filtered.empty:
             df_show = df_detail_filtered.sort_values('날짜', ascending=False).reset_index(drop=True)
-            st.markdown("""<div class="custom-header">
-<div class="row-item">날짜</div><div class="row-item">부서</div><div class="row-item">대분류</div>
-<div class="row-item">소분류</div><div class="row-item-left" style="flex:2;">적요</div>
-<div class="row-item" style="text-align:right; padding-right:20px;">금액</div></div>""", unsafe_allow_html=True)
-            
+            st.markdown("""
+                <div class="custom-header">
+                    <div class="row-item">날짜</div>
+                    <div class="row-item">부서</div>
+                    <div class="row-item">대분류</div>
+                    <div class="row-item">소분류</div>
+                    <div class="row-item-left" style="flex:2;">적요</div>
+                    <div class="row-item" style="text-align:right; padding-right:20px;">금액</div>
+                </div>
+            """, unsafe_allow_html=True)
             with st.container(height=400):
                 for _, row in df_show.iterrows():
                     date_str = row['날짜'].strftime('%Y-%m-%d')
                     amt_str = f"{int(row['금액']):,}"
-                    st.markdown(f"""<div class="custom-row">
-<div class="row-item" style="color:#64748B; font-size:0.85rem;">{date_str}</div>
-<div class="row-item"><strong>{row['팀명']}</strong></div>
-<div class="row-item"><span class="badge badge-gray">{row['대분류']}</span></div>
-<div class="row-item"><span class="badge badge-gray">{row['소분류']}</span></div>
-<div class="row-item-left" style="flex:2; color:#334155;">{row['상세내역']}</div>
-<div class="row-item" style="text-align:right; padding-right:20px; font-weight:bold; color:#1E293B;">{amt_str}원</div>
-</div>""", unsafe_allow_html=True)
+                    st.markdown(f"""
+                        <div class="custom-row">
+                            <div class="row-item" style="color:#64748B; font-size:0.85rem;">{date_str}</div>
+                            <div class="row-item"><strong>{row['팀명']}</strong></div>
+                            <div class="row-item"><span class="badge badge-gray">{row['대분류']}</span></div>
+                            <div class="row-item"><span class="badge badge-gray">{row['소분류']}</span></div>
+                            <div class="row-item-left" style="flex:2; color:#334155;">{row['상세내역']}</div>
+                            <div class="row-item" style="text-align:right; padding-right:20px; font-weight:bold; color:#1E293B;">{amt_str}원</div>
+                        </div>
+                    """, unsafe_allow_html=True)
         else:
             st.info("내역이 없습니다.")
 
 # =============================================================================
-# [PART B] 연차 관리 (기존 양식 그대로 유지)
+# [PART B] 연차 관리
 # =============================================================================
 elif menu == "🏖️ 연차 관리":
     if not leave_sheet_name:
@@ -583,7 +590,6 @@ elif menu == "🏖️ 연차 관리":
     df_leave = all_sheets[leave_sheet_name].fillna(0)
     df_leave['소속'] = df_leave['소속'].apply(clean_dept_name)
     
-    # [수정] 대상델리하임 제외
     df_leave = df_leave[df_leave['소속'] != '대상델리하임']
 
     for col in ['합계', '사용일수', '잔여일수', '부채예산', '부채잔액']:
@@ -622,8 +628,7 @@ elif menu == "🏖️ 연차 관리":
     
     total_used = df_leave[display_usage_col].sum()
     total_remain = df_leave['잔여일수'].sum()
-    
-    # [수정] 목표 소진율 50%
+    avg_remain_rate = (total_remain / df_leave['합계'].sum() * 100) if df_leave['합계'].sum() > 0 else 0
     avg_usage = (total_used / df_leave['합계'].sum() * 100) if df_leave['합계'].sum() > 0 else 0
 
     st.markdown(f"""
@@ -633,12 +638,11 @@ elif menu == "🏖️ 연차 관리":
         </div>
     """, unsafe_allow_html=True)
 
-    # [수정] 부채 제거
     k1, k2, k3, k4 = st.columns(4)
     k1.metric(f"소진율 ({leave_period_option})", f"{avg_usage:.1f}%", delta="Goal 50%")
     k2.metric("총 사용 연차", f"{total_used:,.1f}일")
     k3.metric("총 잔여 연차", f"{total_remain:,.1f}일")
-    k4.metric("촉진 대상자", f"{len(df_risk)}명", f"> {risk_criteria} days", delta_color="inverse")
+    k4.metric("전사 평균 잔여율", f"{avg_remain_rate:.1f}%", delta="Down", delta_color="inverse")
 
     st.divider()
 
@@ -655,7 +659,6 @@ elif menu == "🏖️ 연차 관리":
     with c_risk:
         st.subheader(f"🚨 촉진 대상자 (High Residual Rate)")
         if not df_risk.empty:
-            # [수정] 부채 제외 요약
             r_tot = df_risk['합계'].sum()
             r_use = df_risk['사용일수'].sum()
             r_rem = df_risk['잔여일수'].sum()
@@ -670,7 +673,6 @@ elif menu == "🏖️ 연차 관리":
                 </div>
             """, unsafe_allow_html=True)
             
-            # [수정] 잔여일 -> 잔여율로 변경
             st.markdown("""
                 <div class="custom-header">
                     <div class="row-item">성명/직급</div>
@@ -687,7 +689,7 @@ elif menu == "🏖️ 연차 관리":
                             <div class="row-item"><strong>{row['성명']}</strong></div>
                             <div class="row-item" style="color:#64748B;">{row['소속']}</div>
                             <div class="row-item"><span class="badge badge-red">{row['잔여율']:.1f}%</span></div>
-                            <div class="row-item" style="font-size:0.8rem; color:#94A3B8;">잔여 {row['잔여일수']:.1f}일</div>
+                            <div class="row-item" style="font-size:0.8rem; color:#94A3B8;">잔여 {row['잔여일수']:.1f}일 이상</div>
                         </div>
                     """, unsafe_allow_html=True)
         else:
@@ -697,7 +699,6 @@ elif menu == "🏖️ 연차 관리":
     st.subheader("👥 전체 임직원 명부")
     df_show = df_leave.sort_values('소속').copy()
     
-    # [수정] 잔여율만 표시 (총/사용/잔여일 삭제)
     st.markdown("""
         <div class="custom-header">
             <div class="row-item">소속</div>
@@ -716,7 +717,7 @@ elif menu == "🏖️ 연차 관리":
             """, unsafe_allow_html=True)
 
 # =============================================================================
-# [PART C] 연장근무 관리 (기존 양식 그대로 유지)
+# [PART C] 연장근무 관리
 # =============================================================================
 elif menu == "⏰ 연장근무 관리":
     if not overtime_sheet_name:
@@ -726,7 +727,6 @@ elif menu == "⏰ 연장근무 관리":
     df_ot = all_sheets[overtime_sheet_name].fillna(0)
     df_ot.columns = [str(c).replace(' ','').strip() for c in df_ot.columns]
     
-    # [수정] 지원팀 -> 경영지원팀, 생산팀/대상델리하임 제외
     df_ot['팀명'] = df_ot['팀명'].replace('지원팀', '경영지원팀')
     df_ot = df_ot[~df_ot['팀명'].isin(['생산팀', '대상델리하임'])]
     
@@ -771,7 +771,7 @@ elif menu == "⏰ 연장근무 관리":
         </div>
     """, unsafe_allow_html=True)
 
-    view_mode = st.radio("VIEW MODE", ["📊 통합 현황", "📈 주간 추이"], horizontal=True, label_visibility="collapsed")
+    view_mode = st.radio("VIEW MODE", ["📊 통합 현황"], horizontal=True, label_visibility="collapsed")
     st.markdown("---")
 
     total_sum = df_filtered['총근무'].sum()
@@ -782,8 +782,6 @@ elif menu == "⏰ 연장근무 관리":
     ext_ratio = (ext_sum / total_sum * 100) if total_sum > 0 else 0
     night_ratio = (night_sum / total_sum * 100) if total_sum > 0 else 0
     hol_ratio = (hol_sum / total_sum * 100) if total_sum > 0 else 0
-
-    target_val = total_sum * (target_ratio / 100)
 
     if view_mode == "📊 통합 현황":
         st.subheader("통합 연장근무 현황")
@@ -830,7 +828,6 @@ elif menu == "⏰ 연장근무 관리":
             if '월' in df_ot.columns and not df_ot.empty:
                 trend_df = df_ot.groupby('월')['총근무'].sum().reset_index()
                 try:
-                    # [수정] 날짜 기준 정렬 (X축 깨짐 방지)
                     trend_df['sort_key'] = trend_df['월'].apply(lambda x: int(re.sub(r'\D', '', str(x))) if re.sub(r'\D', '', str(x)) else 0)
                     trend_df = trend_df.sort_values('sort_key')
                 except: pass
@@ -842,9 +839,6 @@ elif menu == "⏰ 연장근무 관리":
             else:
                 st.info("데이터 없음")
 
-    elif view_mode == "📈 주간 추이":
-        st.info("주간 추이 기능은 월별 통합 관리에 집중하기 위해 제외되었습니다.")
-
     st.divider()
     st.subheader("🗓️ 상세 근무 내역")
     
@@ -853,15 +847,14 @@ elif menu == "⏰ 연장근무 관리":
             <div class="row-item">월</div>
             <div class="row-item">팀명</div>
             <div class="row-item">이름</div>
-            <div class="row-item" style="color:#3B82F6;">연장</div>
-            <div class="row-item" style="color:#EF4444;">야근</div>
-            <div class="row-item" style="color:#0EA5E9;">휴일</div>
+            <div class="row-item" style="color:#3B82F6 !important;">연장</div>
+            <div class="row-item" style="color:#EF4444 !important;">야근</div>
+            <div class="row-item" style="color:#0EA5E9 !important;">휴일</div>
             <div class="row-item" style="font-weight:bold;">합계</div>
         </div>
     """, unsafe_allow_html=True)
 
     if not df_filtered.empty:
-        # [수정] 내림차순 정렬 (근무시간 많은 순)
         df_show_ot = df_filtered.sort_values('총근무', ascending=False).reset_index(drop=True)
 
         with st.container(height=500):
@@ -875,9 +868,9 @@ elif menu == "⏰ 연장근무 관리":
                         <div class="row-item" style="color:#A3AED0;">{row['월']}</div>
                         <div class="row-item"><strong>{row['팀명']}</strong></div>
                         <div class="row-item">{row['이름']}</div>
-                        <div class="row-item" style="color:#3B82F6;">{ext:.1f}</div>
-                        <div class="row-item" style="color:#EF4444;">{night:.1f}</div>
-                        <div class="row-item" style="color:#0EA5E9;">{hol:.1f}</div>
+                        <div class="row-item" style="color:#3B82F6; font-weight:bold;">{ext:.1f}</div>
+                        <div class="row-item" style="color:#EF4444; font-weight:bold;">{night:.1f}</div>
+                        <div class="row-item" style="color:#0EA5E9; font-weight:bold;">{hol:.1f}</div>
                         <div class="row-item" style="font-weight:bold; background-color:#EFF4FB; border-radius:4px; color:#2B3674;">{row['총근무']:.1f}h</div>
                     </div>
                 """, unsafe_allow_html=True)
