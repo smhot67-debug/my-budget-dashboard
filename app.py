@@ -447,6 +447,11 @@ if menu == "💰 예산 관리":
 
     df_dash = pd.DataFrame(dashboard_rows)
     
+    # [정렬 로직 추가] "공통운영비" 또는 "공통" 이 포함된 팀을 제일 위로 올립니다.
+    if not df_dash.empty:
+        df_dash['is_공통'] = df_dash['팀명'].apply(lambda x: 0 if '공통' in str(x) else 1)
+        df_dash = df_dash.sort_values(by=['is_공통', '팀명']).reset_index(drop=True)
+
     df_detail_filtered = df_expense.copy()
     if period_option == "전체 누적":
         df_detail_filtered = df_detail_filtered[df_detail_filtered['월_숫자'] >= 2]
@@ -496,7 +501,7 @@ if menu == "💰 예산 관리":
         
         col_left, col_right = st.columns(2)
         
-        # [HTML 랜더링 수정] 문자열 내 줄바꿈을 모두 제거하여 Streamlit 마크다운 파서 오류 해결
+        # [HTML 렌더링 수정] 팀명 폰트 1.3rem, 타이틀 1.0rem, 비율 1.05~1.1rem, 텍스트 1.0rem, 잔액 1.2rem 상향 조정
         def generate_card_html(row, is_cumulative_view):
             cur_pct = min(row['집행률'], 100)
             cur_color = "#3B82F6" if cur_pct < 80 else ("#F59E0B" if cur_pct < 100 else "#EF4444")
@@ -507,62 +512,61 @@ if menu == "💰 예산 관리":
             if is_cumulative_view:
                 title_label = "■ 누계 실적" if period_option == "전체 누적" else "■ 누계 실적 (1월)"
                 html_content = f"""
-                    <div style="background:white; padding:20px; border-radius:16px; margin-bottom:15px; box-shadow: 0px 4px 12px rgba(0,0,0,0.05); border:1px solid #E2E8F0; border-top: 4px solid #3B82F6;">
+                    <div style="background:white; padding:24px; border-radius:16px; margin-bottom:15px; box-shadow: 0px 4px 12px rgba(0,0,0,0.05); border:1px solid #E2E8F0; border-top: 4px solid #3B82F6;">
                         <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
-                            <span style="font-weight:800; color:#1E293B; font-size:1.15rem;">{row['팀명']}</span>
+                            <span style="font-weight:800; color:#1E293B; font-size:1.3rem;">{row['팀명']}</span>
                         </div>
-                        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
-                            <span style="font-weight:700; color:#4318FF; font-size:0.9rem;">{title_label}</span>
-                            <span style="font-weight:800; color:{cum_color}; font-size:0.95rem;">{row['누계_집행률']:.1f}%</span>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                            <span style="font-weight:700; color:#4318FF; font-size:1.0rem;">{title_label}</span>
+                            <span style="font-weight:800; color:{cum_color}; font-size:1.1rem;">{row['누계_집행률']:.1f}%</span>
                         </div>
                         <div style="width:100%; background-color:#F1F5F9; height:8px; border-radius:4px; margin-bottom:15px;">
                             <div style="width:{cum_pct}%; background-color:{cum_color}; height:8px; border-radius:4px;"></div>
                         </div>
-                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; font-size:0.9rem; color:#64748B;">
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; font-size:1.0rem; color:#64748B;">
                             <div>예산: {row['누계_예산']:,.0f}</div>
                             <div style="text-align:right;">사용: <strong style="color:#1E293B;">{row['누계_사용액']:,.0f}</strong></div>
                             <div style="grid-column: span 2; text-align:right; border-top:1px solid #F1F5F9; padding-top:10px; margin-top:5px;">
-                                잔액: <strong style="color:{cum_color}; font-size:1.05rem;">{row['잔액']:,.0f}</strong>
+                                잔액: <strong style="color:{cum_color}; font-size:1.2rem;">{row['잔액']:,.0f}</strong>
                             </div>
                         </div>
                     </div>
                 """
             else:
                 html_content = f"""
-                    <div style="background:white; padding:20px; border-radius:16px; margin-bottom:15px; box-shadow: 0px 4px 12px rgba(0,0,0,0.05); border:1px solid #E2E8F0; border-top: 4px solid #3B82F6;">
+                    <div style="background:white; padding:24px; border-radius:16px; margin-bottom:15px; box-shadow: 0px 4px 12px rgba(0,0,0,0.05); border:1px solid #E2E8F0; border-top: 4px solid #3B82F6;">
                         <div style="margin-bottom:15px;">
-                            <span style="font-weight:800; color:#1E293B; font-size:1.15rem;">{row['팀명']}</span>
+                            <span style="font-weight:800; color:#1E293B; font-size:1.3rem;">{row['팀명']}</span>
                         </div>
-                        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
-                            <span style="font-weight:700; color:#64748B; font-size:0.85rem;">■ 당월 실적</span>
-                            <span style="font-weight:800; color:{cur_color}; font-size:0.9rem;">당월 {row['집행률']:.1f}%</span>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                            <span style="font-weight:700; color:#64748B; font-size:1.0rem;">■ 당월 실적</span>
+                            <span style="font-weight:800; color:{cur_color}; font-size:1.05rem;">당월 {row['집행률']:.1f}%</span>
                         </div>
-                        <div style="width:100%; background-color:#F1F5F9; height:6px; border-radius:3px; margin-bottom:10px;">
-                            <div style="width:{cur_pct}%; background-color:{cur_color}; height:6px; border-radius:3px;"></div>
+                        <div style="width:100%; background-color:#F1F5F9; height:8px; border-radius:4px; margin-bottom:10px;">
+                            <div style="width:{cur_pct}%; background-color:{cur_color}; height:8px; border-radius:4px;"></div>
                         </div>
-                        <div style="display:flex; justify-content:space-between; font-size:0.85rem; color:#64748B; margin-bottom:15px;">
+                        <div style="display:flex; justify-content:space-between; font-size:1.0rem; color:#64748B; margin-bottom:15px;">
                             <span>가용: {row['예산']:,.0f}</span>
                             <span>사용: <strong style="color:#1E293B;">{row['사용액']:,.0f}</strong></span>
                         </div>
                         <div style="border-top: 1px dashed #E2E8F0; margin: 15px 0;"></div>
-                        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
-                            <span style="font-weight:700; color:#4318FF; font-size:0.85rem;">■ 누계 실적 (2월~)</span>
-                            <span style="font-weight:800; color:{cum_color}; font-size:0.9rem;">누계 {row['누계_집행률']:.1f}%</span>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                            <span style="font-weight:700; color:#4318FF; font-size:1.0rem;">■ 누계 실적 (2월~)</span>
+                            <span style="font-weight:800; color:{cum_color}; font-size:1.05rem;">누계 {row['누계_집행률']:.1f}%</span>
                         </div>
-                        <div style="width:100%; background-color:#F1F5F9; height:6px; border-radius:3px; margin-bottom:10px;">
-                            <div style="width:{cum_pct}%; background-color:{cum_color}; height:6px; border-radius:3px;"></div>
+                        <div style="width:100%; background-color:#F1F5F9; height:8px; border-radius:4px; margin-bottom:10px;">
+                            <div style="width:{cum_pct}%; background-color:{cum_color}; height:8px; border-radius:4px;"></div>
                         </div>
-                        <div style="display:flex; justify-content:space-between; font-size:0.85rem; color:#64748B;">
+                        <div style="display:flex; justify-content:space-between; font-size:1.0rem; color:#64748B;">
                             <span>누계 예산: {row['누계_예산']:,.0f}</span>
                             <span>누계 사용: <strong style="color:#1E293B;">{row['누계_사용액']:,.0f}</strong></span>
                         </div>
                         <div style="text-align:right; border-top:1px solid #F1F5F9; padding-top:10px; margin-top:12px;">
-                            <span style="font-size:0.9rem; color:#64748B;">최종 잔액: </span>
-                            <strong style="color:{cum_color}; font-size:1.1rem;">{row['잔액']:,.0f}</strong>
+                            <span style="font-size:1.0rem; color:#64748B;">최종 잔액: </span>
+                            <strong style="color:{cum_color}; font-size:1.2rem;">{row['잔액']:,.0f}</strong>
                         </div>
                     </div>
                 """
-            # Streamlit 마크다운 파서 에러 방지를 위해 줄바꿈 모두 제거하여 단일 문자열로 리턴
             return html_content.replace('\n', '')
 
         is_cumulative_view = period_option == "전체 누적" or "-01" in period_option
