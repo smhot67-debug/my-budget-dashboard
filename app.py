@@ -773,11 +773,12 @@ elif menu == "⏰ 연장근무 관리":
     df_ot = all_sheets[overtime_sheet_name].fillna(0)
     df_ot.columns = [str(c).replace(' ','').strip() for c in df_ot.columns]
     
-    df_ot['팀명'] = df_ot['팀명'].replace('지원팀', '경영지원팀')
-    df_ot = df_ot[~df_ot['팀명'].isin(['생산팀', '대상델리하임'])]
-    
     if '팀명' in df_ot.columns:
+        # TypeError를 막기 위해 팀명을 가장 먼저 문자열(Text)로 변환
         df_ot['팀명'] = df_ot['팀명'].astype(str)
+        df_ot['팀명'] = df_ot['팀명'].replace('지원팀', '경영지원팀')
+        # 생산팀, 대상델리하임 및 엑셀 빈 값(0, nan 등)을 완전히 필터링
+        df_ot = df_ot[~df_ot['팀명'].isin(['생산팀', '대상델리하임', '0', '0.0', 'nan', 'NaN'])]
 
     month_col = next((c for c in df_ot.columns if c == '월' or c == 'Month'), None)
     if month_col:
@@ -800,7 +801,12 @@ elif menu == "⏰ 연장근무 관리":
         default_idx = get_default_month_index(master_months)
         ot_month_opt = st.selectbox("조회 기간", master_months, index=default_idx)
 
-        filtered_teams = sorted(df_ot['팀명'].unique())
+        # 안전하게 필터링된 팀 목록 추출 및 정렬
+        if '팀명' in df_ot.columns:
+            filtered_teams = sorted([t for t in df_ot['팀명'].unique() if t.strip() != ''])
+        else:
+            filtered_teams = []
+            
         ot_team_opt = st.selectbox("소속 팀", ["전체 팀"] + filtered_teams)
         target_ratio = st.slider("전년 대비 목표 (%)", 80, 120, 90)
 
