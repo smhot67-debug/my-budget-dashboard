@@ -5,8 +5,7 @@ import plotly.graph_objects as go
 import re
 import qrcode
 from io import BytesIO
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
+from datetime import datetime, timedelta
 
 # -----------------------------------------------------------------------------
 # 1. 시스템 설정 및 디자인
@@ -235,10 +234,12 @@ def safe_numeric(series):
     else:
         return pd.to_numeric(series, errors='coerce').fillna(0)
 
-# [Helper] 전월 구하기 (자동 필터용)
+# [Helper] 전월 구하기 (자동 필터용 - GitHub 오류 방지를 위해 기본 datetime 사용)
 def get_default_month_index(options):
     today = datetime.now()
-    prev_month = today - relativedelta(months=1)
+    # 이번 달의 1일에서 하루를 빼면 정확히 저번 달이 됩니다. (dateutil 대체)
+    first_day = today.replace(day=1)
+    prev_month = first_day - timedelta(days=1)
     prev_month_str = f"2026-{prev_month.strftime('%m')}" 
     
     for i, opt in enumerate(options):
@@ -584,7 +585,6 @@ if menu == "💰 예산 관리":
 <div class="row-item-left" style="flex:2; color:#334155;">{row['상세내역']}</div>
 <div class="row-item" style="text-align:right; padding-right:20px; font-weight:bold; color:#1E293B;">{amt_str}원</div>
 </div>""", unsafe_allow_html=True)
-                
                 # 리스트 마지막 잘림 방지용 여백 추가
                 st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
         else:
@@ -707,7 +707,6 @@ elif menu == "🏖️ 연차 관리":
                             <div class="row-item" style="font-size:0.8rem; color:#94A3B8;">잔여 {row['잔여일수']:.1f}일 이상</div>
                         </div>
                     """, unsafe_allow_html=True)
-                
                 # 리스트 마지막 잘림 방지용 여백 추가
                 st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
         else:
@@ -734,7 +733,6 @@ elif menu == "🏖️ 연차 관리":
                     <div class="row-item"><span class="badge badge-blue">{row['잔여율']:.1f}%</span></div>
                 </div>
             """, unsafe_allow_html=True)
-            
         # 리스트 마지막 잘림 방지용 여백 추가
         st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
 
@@ -905,7 +903,7 @@ elif menu == "⏰ 연장근무 관리":
                         <div class="row-item" style="font-weight:bold; background-color:#EFF4FB; border-radius:4px; color:#2B3674;">{row['총근무']:.1f}h</div>
                     </div>
                 """, unsafe_allow_html=True)
-                
+            
             # 리스트 마지막 잘림 방지용 여백 추가
             st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
     else:
